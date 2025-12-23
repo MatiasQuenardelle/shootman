@@ -1,0 +1,60 @@
+'use client';
+
+interface StartScreenProps {
+  onStart: () => void;
+  onShowInstructions: () => void;
+  highScore: number;
+}
+
+export function StartScreen({ onStart, onShowInstructions, highScore }: StartScreenProps) {
+  return (
+    <div className="fixed inset-0 bg-gradient-to-b from-slate-900 to-slate-800 flex flex-col items-center justify-center p-4">
+      {/* Title */}
+      <div className="text-center mb-12">
+        <h1 className="text-6xl md:text-8xl font-bold text-white mb-2">
+          <span className="text-red-500">SHOOT</span>MAN
+        </h1>
+        <p className="text-slate-400 text-lg">Hand Tracking Shooting Game</p>
+      </div>
+
+      {/* Gun gesture illustration */}
+      <div className="mb-12 text-center">
+        <div className="text-8xl mb-4">
+          <span role="img" aria-label="pointing hand">
+            👉
+          </span>
+        </div>
+        <p className="text-slate-400">Make a gun shape with your hand to aim</p>
+      </div>
+
+      {/* Buttons */}
+      <div className="flex flex-col gap-4 w-full max-w-xs">
+        <button
+          onClick={onStart}
+          className="bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors shadow-lg shadow-red-500/30"
+        >
+          START GAME
+        </button>
+        <button
+          onClick={onShowInstructions}
+          className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+        >
+          How to Play
+        </button>
+      </div>
+
+      {/* High score */}
+      {highScore > 0 && (
+        <div className="mt-8 text-center">
+          <p className="text-slate-500 text-sm">HIGH SCORE</p>
+          <p className="text-yellow-400 text-2xl font-bold">{highScore.toLocaleString()}</p>
+        </div>
+      )}
+
+      {/* Requirements notice */}
+      <div className="absolute bottom-4 left-4 right-4 text-center text-slate-500 text-sm">
+        <p>Requires camera access and good lighting</p>
+      </div>
+    </div>
+  );
+}
