@@ -8,7 +8,7 @@ import { useCamera } from '@/hooks/useCamera';
 import { useHandTracking } from '@/hooks/useHandTracking';
 import { useGestureDetection } from '@/hooks/useGestureDetection';
 import { useGameLoop } from '@/hooks/useGameLoop';
-import { GameState, Target as TargetType, HitEffect } from '@/types';
+import { GameState, Target as TargetType, HitEffect, LevelConfig } from '@/types';
 import { createTarget, updateTarget, isTargetOffScreen } from '@/lib/targetManager';
 import { findClosestHitTarget } from '@/lib/collision';
 import { audioManager } from '@/lib/audio';
@@ -16,22 +16,30 @@ import { GAME_CONFIG } from '@/constants/game';
 
 interface GameCanvasProps {
   gameState: GameState;
+  levelConfig?: LevelConfig;
   onScoreChange: (score: number) => void;
   onLivesChange: (lives: number) => void;
   onComboChange: (combo: number) => void;
   onWaveChange: (wave: number) => void;
   onGameOver: () => void;
   onTargetsChange: (count: number) => void;
+  onTimeChange: (time: number) => void;
+  onLevelComplete: () => void;
+  onLevelFailed: () => void;
 }
 
 export function GameCanvas({
   gameState,
+  levelConfig,
   onScoreChange,
   onLivesChange,
   onComboChange,
   onWaveChange,
   onGameOver,
   onTargetsChange,
+  onTimeChange,
+  onLevelComplete,
+  onLevelFailed,
 }: GameCanvasProps) {
   const { videoRef, hasPermission, requestPermission, error: cameraError } = useCamera();
   const { handLandmarks, isInitialized, startTracking, stopTracking, error: trackingError } =
@@ -46,6 +54,8 @@ export function GameCanvas({
   const gameTimeRef = useRef<number>(0);
   const targetsDestroyedInWaveRef = useRef<number>(0);
   const lastShotProcessedRef = useRef<boolean>(false);
+  const levelStartTimeRef = useRef<number>(0);
+  const bonusTimeRef = useRef<number>(0); // accumulated bonus time from hits
 
   // Update screen dimensions
   useEffect(() => {
@@ -113,6 +123,11 @@ export function GameCanvas({
         audioManager.play('combo');
       }
 
+      // Add bonus time if level has bonusTimePerHit
+      if (levelConfig?.specialRules?.bonusTimePerHit) {
+        bonusTimeRef.current += levelConfig.specialRules.bonusTimePerHit;
+      }
+
       // Add hit effect
       setHitEffects((prev) => [
         ...prev,
@@ -129,8 +144,8 @@ export function GameCanvas({
       targetsDestroyedInWaveRef.current += 1;
       onTargetsChange(targetsDestroyedInWaveRef.current);
 
-      // Check wave completion
-      if (targetsDestroyedInWaveRef.current >= GAME_CONFIG.WAVE_TARGET_COUNT) {
+      // Check wave completion (only in endless mode without level config)
+      if (!levelConfig && targetsDestroyedInWaveRef.current >= GAME_CONFIG.WAVE_TARGET_COUNT) {
         targetsDestroyedInWaveRef.current = 0;
         onWaveChange(gameState.wave + 1);
         audioManager.play('levelUp');
@@ -164,19 +179,50 @@ export function GameCanvas({
       gameTimeRef.current += deltaTime;
       const currentTime = gameTimeRef.current;
 
+      // Calculate and update time remaining for level mode
+      if (levelConfig) {
+        const elapsedSeconds = (Date.now() - levelStartTimeRef.current) / 1000;
+        const totalTime = levelConfig.duration + bonusTimeRef.current;
+        const remaining = Math.max(0, totalTime - elapsedSeconds);
+        onTimeChange(remaining);
+
+        // Check if time ran out
+        if (remaining <= 0) {
+          if (gameState.score >= levelConfig.passScore) {
+            onLevelComplete();
+          } else {
+            onLevelFailed();
+          }
+          return;
+        }
+      }
+
+      // Get spawn settings from level config or defaults
+      const spawnInterval = levelConfig?.spawnInterval || GAME_CONFIG.SPAWN_INTERVAL / (1 + gameState.difficulty * 0.2);
+      const maxTargets = levelConfig?.maxTargets || GAME_CONFIG.MAX_TARGETS;
+      const difficulty = levelConfig?.difficulty ?? gameState.difficulty;
+
       // Spawn new targets
-      const spawnInterval = GAME_CONFIG.SPAWN_INTERVAL / (1 + gameState.difficulty * 0.2);
       if (
         currentTime - lastSpawnTimeRef.current > spawnInterval &&
-        targets.length < GAME_CONFIG.MAX_TARGETS
+        targets.length < maxTargets
       ) {
         const newTarget = createTarget(
           screenDimensions.width,
           screenDimensions.height,
-          gameState.difficulty
+          difficulty,
+          levelConfig
         );
         setTargets((prev) => [...prev, newTarget]);
         lastSpawnTimeRef.current = currentTime;
+      }
+
+      // Calculate speed ramp multiplier if enabled
+      let speedMultiplier = 1;
+      if (levelConfig?.specialRules?.speedRamp) {
+        const elapsedSeconds = (Date.now() - levelStartTimeRef.current) / 1000;
+        const progress = elapsedSeconds / levelConfig.duration;
+        speedMultiplier = 1 + progress * 1.5; // up to 2.5x speed at end
       }
 
       // Update targets
@@ -185,22 +231,31 @@ export function GameCanvas({
         const updated: TargetType[] = [];
 
         for (const target of prev) {
-          const newTarget = updateTarget(target, deltaTime, currentTime);
+          // Apply speed ramp to target
+          const modifiedTarget = speedMultiplier > 1
+            ? { ...target, speed: target.speed * speedMultiplier }
+            : target;
+
+          const newTarget = updateTarget(modifiedTarget, deltaTime, currentTime);
           if (isTargetOffScreen(newTarget, screenDimensions.width, screenDimensions.height)) {
             escapedCount += 1;
           } else {
-            updated.push(newTarget);
+            updated.push({ ...newTarget, speed: target.speed }); // restore original speed for next frame
           }
         }
 
         return updated;
       });
 
-      // Penalize for escaped targets (outside setTargets to avoid setState during render)
-      if (escapedCount > 0) {
+      // Penalize for escaped targets (unless noLivesLoss is enabled)
+      if (escapedCount > 0 && !levelConfig?.specialRules?.noLivesLoss) {
         const newLives = gameState.lives - escapedCount * GAME_CONFIG.MISSED_TARGET_PENALTY;
         if (newLives <= 0) {
-          onGameOver();
+          if (levelConfig) {
+            onLevelFailed();
+          } else {
+            onGameOver();
+          }
         } else {
           onLivesChange(newLives);
         }
@@ -215,10 +270,15 @@ export function GameCanvas({
       gameState.status,
       gameState.difficulty,
       gameState.lives,
+      gameState.score,
       screenDimensions,
       targets.length,
+      levelConfig,
       onLivesChange,
       onGameOver,
+      onTimeChange,
+      onLevelComplete,
+      onLevelFailed,
     ]
   );
 
@@ -232,7 +292,7 @@ export function GameCanvas({
     }
   }, [gameState.status, startGameLoop, stopGameLoop]);
 
-  // Reset game state when starting new game
+  // Reset game state when starting new game/level
   useEffect(() => {
     if (gameState.status === 'playing' && gameState.score === 0) {
       setTargets([]);
@@ -240,6 +300,8 @@ export function GameCanvas({
       targetsDestroyedInWaveRef.current = 0;
       lastSpawnTimeRef.current = 0;
       gameTimeRef.current = 0;
+      levelStartTimeRef.current = Date.now();
+      bonusTimeRef.current = 0;
     }
   }, [gameState.status, gameState.score]);
 
@@ -275,9 +337,21 @@ export function GameCanvas({
       <Camera ref={videoRef} className="opacity-0 pointer-events-none" />
 
       {/* Targets */}
-      {targets.map((target) => (
-        <Target key={target.id} target={target} />
-      ))}
+      {targets.map((target) => {
+        // Calculate shrink progress if shrinking targets enabled
+        const shrinkProgress = levelConfig?.specialRules?.shrinkingTargets
+          ? Math.min(1, (Date.now() - target.spawnTime) / 8000) // shrink over 8 seconds
+          : 0;
+
+        return (
+          <Target
+            key={target.id}
+            target={target}
+            isGhost={levelConfig?.specialRules?.invisibleTargets}
+            shrinkProgress={shrinkProgress}
+          />
+        );
+      })}
 
       {/* Hit effects */}
       {hitEffects.map((effect) => (

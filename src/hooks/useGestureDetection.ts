@@ -192,19 +192,18 @@ export function useGestureDetection(
 
     lastThumbDistanceRef.current = currentThumbDistance;
 
-    // Calculate aim position from index finger base (MCP) for stability
-    // Using MCP instead of fingertip prevents aim drift when thumb moves for shooting
+    // Calculate aim position from index fingertip for precise aiming
     // MediaPipe coordinates are normalized (0-1)
     // Mirror X so hand movement matches crosshair movement
     // Show crosshair whenever hand is detected (not just gun shape)
     let aimPosition: AimPosition | null = null;
     if (handLandmarks) {
-      // Use index MCP (knuckle) as primary reference - stable when thumb moves
+      // Use index fingertip as primary reference for precise finger-based aiming
+      const indexTip = landmarks[HAND_LANDMARKS.INDEX_TIP];
+      // Blend with index MCP (knuckle) for slight stability
       const indexMCP = landmarks[HAND_LANDMARKS.INDEX_MCP];
-      // Blend with wrist for extra stability
-      const wrist = landmarks[HAND_LANDMARKS.WRIST];
-      const stableX = indexMCP.x * 0.7 + wrist.x * 0.3;
-      const stableY = indexMCP.y * 0.7 + wrist.y * 0.3;
+      const stableX = indexTip.x * 0.85 + indexMCP.x * 0.15;
+      const stableY = indexTip.y * 0.85 + indexMCP.y * 0.15;
 
       const sensitivity = GAME_CONFIG.AIM_SENSITIVITY;
       const centerX = 0.5;

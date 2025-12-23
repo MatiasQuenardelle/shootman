@@ -6,11 +6,23 @@ import { getTargetColor } from '@/lib/targetManager';
 interface TargetProps {
   target: TargetType;
   isHit?: boolean;
+  isGhost?: boolean; // for Ghost Hunt level
+  shrinkProgress?: number; // 0-1 for shrinking targets
 }
 
-export function Target({ target, isHit = false }: TargetProps) {
+export function Target({ target, isHit = false, isGhost = false, shrinkProgress = 0 }: TargetProps) {
   const color = getTargetColor(target.type);
-  const halfSize = target.size / 2;
+
+  // Calculate actual size if shrinking
+  const actualSize = shrinkProgress > 0
+    ? Math.max(target.baseSize * (1 - shrinkProgress * 0.7), 15) // shrink to min 15px
+    : target.size;
+  const halfSize = actualSize / 2;
+
+  // Calculate ghost opacity (pulsing between 0.2 and 1.0)
+  const ghostOpacity = isGhost
+    ? 0.3 + 0.7 * Math.abs(Math.sin((Date.now() - target.spawnTime) / 800))
+    : 1;
 
   return (
     <div
@@ -20,35 +32,36 @@ export function Target({ target, isHit = false }: TargetProps) {
       style={{
         left: target.x - halfSize,
         top: target.y - halfSize,
-        width: target.size,
-        height: target.size,
+        width: actualSize,
+        height: actualSize,
         backgroundColor: color,
-        boxShadow: `0 0 ${target.size / 4}px ${color}, 0 0 ${target.size / 2}px ${color}40`,
+        boxShadow: `0 0 ${actualSize / 4}px ${color}, 0 0 ${actualSize / 2}px ${color}40`,
         transition: isHit ? 'all 0.2s ease-out' : 'none',
+        opacity: isHit ? 0 : ghostOpacity,
       }}
     >
       {/* Inner rings for visual depth */}
       <div
         className="absolute rounded-full"
         style={{
-          width: target.size * 0.7,
-          height: target.size * 0.7,
+          width: actualSize * 0.7,
+          height: actualSize * 0.7,
           border: `2px solid rgba(255, 255, 255, 0.3)`,
         }}
       />
       <div
         className="absolute rounded-full"
         style={{
-          width: target.size * 0.4,
-          height: target.size * 0.4,
+          width: actualSize * 0.4,
+          height: actualSize * 0.4,
           border: `2px solid rgba(255, 255, 255, 0.5)`,
         }}
       />
       <div
         className="absolute rounded-full bg-white/30"
         style={{
-          width: target.size * 0.15,
-          height: target.size * 0.15,
+          width: actualSize * 0.15,
+          height: actualSize * 0.15,
         }}
       />
 

@@ -1,4 +1,4 @@
-import { Target, TargetType, MovementPattern } from '@/types';
+import { Target, TargetType, MovementPattern, LevelConfig } from '@/types';
 import { GAME_CONFIG } from '@/constants/game';
 
 let targetIdCounter = 0;
@@ -7,21 +7,31 @@ function generateId(): string {
   return `target-${++targetIdCounter}-${Date.now()}`;
 }
 
-function weightedRandomTargetType(): TargetType {
-  const types = Object.entries(GAME_CONFIG.TARGET_TYPES) as [TargetType, typeof GAME_CONFIG.TARGET_TYPES[TargetType]][];
-  const total = types.reduce((sum, [, config]) => sum + config.spawnWeight, 0);
+// Target weights can be overridden by level config
+function weightedRandomTargetType(levelConfig?: LevelConfig): TargetType {
+  const weights = levelConfig?.targetWeights || {
+    normal: GAME_CONFIG.TARGET_TYPES.normal.spawnWeight,
+    fast: GAME_CONFIG.TARGET_TYPES.fast.spawnWeight,
+    small: GAME_CONFIG.TARGET_TYPES.small.spawnWeight,
+    bonus: GAME_CONFIG.TARGET_TYPES.bonus.spawnWeight,
+  };
+
+  const entries = Object.entries(weights) as [TargetType, number][];
+  const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
   let random = Math.random() * total;
 
-  for (const [type, config] of types) {
-    random -= config.spawnWeight;
+  for (const [type, weight] of entries) {
+    random -= weight;
     if (random <= 0) return type;
   }
 
   return 'normal';
 }
 
-function weightedRandomMovement(): MovementPattern {
-  const patterns = Object.entries(GAME_CONFIG.MOVEMENT_PATTERNS) as [MovementPattern, number][];
+// Movement weights can be overridden by level config
+function weightedRandomMovement(levelConfig?: LevelConfig): MovementPattern {
+  const weights = levelConfig?.movementWeights || GAME_CONFIG.MOVEMENT_PATTERNS;
+  const patterns = Object.entries(weights) as [MovementPattern, number][];
   const total = patterns.reduce((sum, [, weight]) => sum + weight, 0);
   let random = Math.random() * total;
 
@@ -36,11 +46,12 @@ function weightedRandomMovement(): MovementPattern {
 export function createTarget(
   screenWidth: number,
   screenHeight: number,
-  difficulty: number
+  difficulty: number,
+  levelConfig?: LevelConfig
 ): Target {
-  const type = weightedRandomTargetType();
+  const type = weightedRandomTargetType(levelConfig);
   const typeConfig = GAME_CONFIG.TARGET_TYPES[type];
-  const movementPattern = weightedRandomMovement();
+  const movementPattern = weightedRandomMovement(levelConfig);
 
   // Calculate size based on type and difficulty
   const baseSize =
@@ -104,6 +115,8 @@ export function createTarget(
     points: typeConfig.points,
     movementPattern,
     phase: Math.random() * Math.PI * 2,
+    spawnTime: Date.now(),
+    baseSize: size,
   };
 }
 

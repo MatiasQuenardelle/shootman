@@ -34,6 +34,8 @@ export interface Target {
   points: number;
   movementPattern: MovementPattern;
   phase: number;
+  spawnTime: number; // for shrinking/fading effects
+  baseSize: number; // original size before shrinking
 }
 
 export type TargetType = 'normal' | 'fast' | 'small' | 'bonus';
@@ -50,9 +52,52 @@ export interface GameState {
   difficulty: number;
   targetsDestroyed: number;
   shotsFired: number;
+  currentLevel: number;
+  timeRemaining: number; // seconds
 }
 
-export type GameStatus = 'idle' | 'playing' | 'paused' | 'gameOver';
+export type GameStatus = 'idle' | 'playing' | 'paused' | 'gameOver' | 'levelComplete' | 'levelFailed';
+
+// Level system types
+export interface LevelConfig {
+  id: number;
+  name: string;
+  description: string;
+  duration: number; // seconds
+  passScore: number;
+  threeStarScore: number;
+  difficulty: number;
+  maxTargets: number;
+  spawnInterval: number; // ms
+  targetWeights: {
+    normal: number;
+    fast: number;
+    small: number;
+    bonus: number;
+  };
+  movementWeights: {
+    linear: number;
+    sine: number;
+    random: number;
+    static: number;
+  };
+  specialRules?: {
+    noLivesLoss?: boolean; // targets don't take lives when escaping
+    bonusTimePerHit?: number; // seconds added per hit
+    shrinkingTargets?: boolean; // targets shrink over time
+    speedRamp?: boolean; // targets speed up as time passes
+    invisibleTargets?: boolean; // targets fade in/out
+  };
+}
+
+export interface LevelResult {
+  levelId: number;
+  score: number;
+  passed: boolean;
+  stars: number; // 0-3
+  targetsHit: number;
+  accuracy: number;
+}
 
 // UI types
 export interface ScreenDimensions {

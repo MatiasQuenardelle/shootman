@@ -2,11 +2,13 @@
 
 interface StartScreenProps {
   onStart: () => void;
+  onLevelSelect: () => void;
   onShowInstructions: () => void;
   highScore: number;
+  totalStars: number;
 }
 
-export function StartScreen({ onStart, onShowInstructions, highScore }: StartScreenProps) {
+export function StartScreen({ onStart, onLevelSelect, onShowInstructions, highScore, totalStars }: StartScreenProps) {
   return (
     <div className="fixed inset-0 bg-gradient-to-b from-slate-900 to-slate-800 flex flex-col items-center justify-center p-4">
       {/* Title */}
@@ -30,10 +32,16 @@ export function StartScreen({ onStart, onShowInstructions, highScore }: StartScr
       {/* Buttons */}
       <div className="flex flex-col gap-4 w-full max-w-xs">
         <button
-          onClick={onStart}
+          onClick={onLevelSelect}
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors shadow-lg shadow-red-500/30"
         >
-          START GAME
+          LEVELS
+        </button>
+        <button
+          onClick={onStart}
+          className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+        >
+          ENDLESS MODE
         </button>
         <button
           onClick={onShowInstructions}
@@ -43,13 +51,21 @@ export function StartScreen({ onStart, onShowInstructions, highScore }: StartScr
         </button>
       </div>
 
-      {/* High score */}
-      {highScore > 0 && (
-        <div className="mt-8 text-center">
-          <p className="text-slate-500 text-sm">HIGH SCORE</p>
-          <p className="text-yellow-400 text-2xl font-bold">{highScore.toLocaleString()}</p>
-        </div>
-      )}
+      {/* Stats */}
+      <div className="mt-8 flex gap-8 text-center">
+        {highScore > 0 && (
+          <div>
+            <p className="text-slate-500 text-sm">HIGH SCORE</p>
+            <p className="text-yellow-400 text-2xl font-bold">{highScore.toLocaleString()}</p>
+          </div>
+        )}
+        {totalStars > 0 && (
+          <div>
+            <p className="text-slate-500 text-sm">TOTAL STARS</p>
+            <p className="text-yellow-400 text-2xl font-bold">{totalStars} / 30 ★</p>
+          </div>
+        )}
+      </div>
 
       {/* Requirements notice */}
       <div className="absolute bottom-4 left-4 right-4 text-center text-slate-500 text-sm">
