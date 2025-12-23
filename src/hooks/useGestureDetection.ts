@@ -162,18 +162,28 @@ export function useGestureDetection(
     const isGunShape = indexExtended || isFullGunShape;
 
     // Calculate thumb distance for shoot detection
+    // Use multiple reference points for more reliable detection
     const thumbTip = landmarks[HAND_LANDMARKS.THUMB_TIP];
+    const thumbIP = landmarks[HAND_LANDMARKS.THUMB_IP];
     const indexBase = landmarks[HAND_LANDMARKS.INDEX_MCP];
-    const currentThumbDistance = distance(thumbTip, indexBase);
+    const indexPIP = landmarks[HAND_LANDMARKS.INDEX_PIP];
 
-    // Detect shooting (thumb moves toward index base quickly)
+    // Primary: thumb tip to index base
+    const thumbToIndexBase = distance(thumbTip, indexBase);
+    // Secondary: thumb tip to index PIP (middle of index finger)
+    const thumbToIndexPIP = distance(thumbTip, indexPIP);
+    // Use the minimum distance for better detection
+    const currentThumbDistance = Math.min(thumbToIndexBase, thumbToIndexPIP);
+
+    // Detect shooting (thumb moves toward index finger)
     const thumbMovement = lastThumbDistanceRef.current - currentThumbDistance;
-    const now = Date.now();
+    // Also detect if thumb is close enough (absolute position check)
+    const thumbIsClose = currentThumbDistance < 0.08;
     const canShoot = now - lastShootTimeRef.current > GAME_CONFIG.SHOOT_COOLDOWN;
     const isShooting =
       isGunShape &&
       canShoot &&
-      thumbMovement > GAME_CONFIG.SHOOT_THRESHOLD &&
+      (thumbMovement > GAME_CONFIG.SHOOT_THRESHOLD || (thumbIsClose && thumbMovement > 0.01)) &&
       lastThumbDistanceRef.current > 0;
 
     if (isShooting) {
@@ -182,16 +192,32 @@ export function useGestureDetection(
 
     lastThumbDistanceRef.current = currentThumbDistance;
 
-    // Calculate aim position from index finger tip
+    // Calculate aim position from index finger base (MCP) for stability
+    // Using MCP instead of fingertip prevents aim drift when thumb moves for shooting
     // MediaPipe coordinates are normalized (0-1)
     // Mirror X so hand movement matches crosshair movement
     // Show crosshair whenever hand is detected (not just gun shape)
     let aimPosition: AimPosition | null = null;
     if (handLandmarks) {
-      const indexTip = landmarks[HAND_LANDMARKS.INDEX_TIP];
+      // Use index MCP (knuckle) as primary reference - stable when thumb moves
+      const indexMCP = landmarks[HAND_LANDMARKS.INDEX_MCP];
+      // Blend with wrist for extra stability
+      const wrist = landmarks[HAND_LANDMARKS.WRIST];
+      const stableX = indexMCP.x * 0.7 + wrist.x * 0.3;
+      const stableY = indexMCP.y * 0.7 + wrist.y * 0.3;
+
+      const sensitivity = GAME_CONFIG.AIM_SENSITIVITY;
+      const centerX = 0.5;
+      const centerY = 0.5;
+
+      // Apply sensitivity multiplier around center point
       // Mirror X: move hand right -> crosshair moves right
-      const rawX = (1 - indexTip.x) * screenDimensions.width;
-      const rawY = indexTip.y * screenDimensions.height;
+      const adjustedX = centerX + (centerX - stableX) * sensitivity;
+      const adjustedY = centerY + (stableY - centerY) * sensitivity;
+
+      // Convert to screen coordinates and clamp to screen bounds
+      const rawX = Math.max(0, Math.min(screenDimensions.width, adjustedX * screenDimensions.width));
+      const rawY = Math.max(0, Math.min(screenDimensions.height, adjustedY * screenDimensions.height));
 
       // Apply smoothing
       if (smoothedAimRef.current) {

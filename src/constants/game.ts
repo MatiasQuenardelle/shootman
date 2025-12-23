@@ -18,9 +18,10 @@ export const GAME_CONFIG = {
 
   // Hand tracking
   HAND_DETECTION_CONFIDENCE: 0.3, // lower = more detections but more noise
-  SHOOT_THRESHOLD: 0.06, // thumb movement threshold
-  SHOOT_COOLDOWN: 200, // ms between shots
-  AIM_SMOOTHING: 0.6, // higher = more responsive
+  SHOOT_THRESHOLD: 0.025, // thumb movement threshold (lower = easier to shoot)
+  SHOOT_COOLDOWN: 150, // ms between shots
+  AIM_SMOOTHING: 0.85, // higher = more responsive
+  AIM_SENSITIVITY: 1.4, // multiplier for aim movement (higher = faster cursor)
 
   // Game
   STARTING_LIVES: 3,
