@@ -24,18 +24,32 @@ export function Target({ target, isHit = false, isGhost = false, shrinkProgress 
     ? 0.3 + 0.7 * Math.abs(Math.sin((Date.now() - target.spawnTime) / 800))
     : 1;
 
-  // Render emoji-based targets for space theme
-  if (['ufo', 'alien', 'meteor', 'planet'].includes(target.type)) {
-    const emoji = {
-      ufo: '🛸',
-      alien: '👽',
-      meteor: '☄️',
-      planet: '🪐',
-    }[target.type] || '🎯';
+  // Render sprite-based targets for space theme
+  // Sprite sheet layout: 3x3 grid
+  // Row 0: UFOs (3 variants)
+  // Row 1: Aliens (3 variants)
+  // Row 2: Spaceships (3 variants)
+  const spriteTypes = ['ufo', 'alien', 'meteor', 'planet'];
+  if (spriteTypes.includes(target.type)) {
+    // Map target type to sprite row
+    const rowMap: Record<string, number> = {
+      ufo: 0,
+      alien: 1,
+      meteor: 2,  // use spaceship sprites for meteor
+      planet: 2,  // use spaceship sprites for planet too
+    };
+    const row = rowMap[target.type] ?? 0;
+
+    // Use target ID to pick a consistent variant (0, 1, or 2)
+    const variant = target.id.charCodeAt(0) % 3;
+
+    // Calculate background position (percentage-based for 3x3 grid)
+    const bgPosX = variant * 50; // 0%, 50%, 100%
+    const bgPosY = row * 50;     // 0%, 50%, 100%
 
     return (
       <div
-        className={`absolute flex items-center justify-center transition-transform ${
+        className={`absolute transition-transform ${
           isHit ? 'scale-150 opacity-0' : ''
         }`}
         style={{
@@ -43,21 +57,16 @@ export function Target({ target, isHit = false, isGhost = false, shrinkProgress 
           top: target.y - halfSize,
           width: actualSize,
           height: actualSize,
+          backgroundImage: 'url(/sprites.png)',
+          backgroundSize: '300% 300%',
+          backgroundPosition: `${bgPosX}% ${bgPosY}%`,
+          backgroundRepeat: 'no-repeat',
+          imageRendering: 'pixelated', // Keep pixel art crisp
           transition: isHit ? 'all 0.2s ease-out' : 'none',
           opacity: isHit ? 0 : ghostOpacity,
-          filter: `drop-shadow(0 0 ${actualSize / 4}px ${color})`,
+          filter: `drop-shadow(0 0 ${actualSize / 6}px ${color})`,
         }}
       >
-        <span
-          style={{
-            fontSize: actualSize * 0.9,
-            lineHeight: 1,
-          }}
-          role="img"
-          aria-label={target.type}
-        >
-          {emoji}
-        </span>
         {/* Health indicator for multi-hit targets */}
         {target.health > 1 && (
           <div className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
