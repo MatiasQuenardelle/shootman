@@ -25,31 +25,17 @@ export function Target({ target, isHit = false, isGhost = false, shrinkProgress 
     : 1;
 
   // Render sprite-based targets for space theme
-  // Sprite sheet layout: 3x3 grid
-  // Row 0: UFOs (3 variants)
-  // Row 1: Aliens (3 variants)
-  // Row 2: Spaceships (3 variants)
+  // Individual sprite files for each type
+  const spriteMap: Record<string, string> = {
+    ufo: '/sprite-ufo.png',
+    alien: '/sprite-alien.png',
+    meteor: '/sprite-rocket.png',  // use rocket sprite for meteor
+    planet: '/sprite-ufo.png',     // use ufo sprite for planet
+  };
+
   const spriteTypes = ['ufo', 'alien', 'meteor', 'planet'];
   if (spriteTypes.includes(target.type)) {
-    // Map target type to sprite row
-    const rowMap: Record<string, number> = {
-      ufo: 0,
-      alien: 1,
-      meteor: 2,  // use spaceship sprites for meteor
-      planet: 2,  // use spaceship sprites for planet too
-    };
-    const row = rowMap[target.type] ?? 0;
-
-    // Use target ID to pick a consistent variant (0, 1, or 2)
-    const variant = target.id.charCodeAt(0) % 3;
-
-    // Calculate background position
-    // Zoom in more (450%) to crop out the green corner brackets
-    // Adjust positions to center on each sprite within the zoomed view
-    const colOffsets = [8, 50, 92]; // percentage positions for each column
-    const rowOffsets = [6, 50, 94]; // percentage positions for each row
-    const bgPosX = colOffsets[variant];
-    const bgPosY = rowOffsets[row];
+    const spriteUrl = spriteMap[target.type];
 
     return (
       <div
@@ -61,11 +47,11 @@ export function Target({ target, isHit = false, isGhost = false, shrinkProgress 
           top: target.y - halfSize,
           width: actualSize,
           height: actualSize,
-          backgroundImage: 'url(/sprites.png)',
-          backgroundSize: '450% 450%',
-          backgroundPosition: `${bgPosX}% ${bgPosY}%`,
+          backgroundImage: `url(${spriteUrl})`,
+          backgroundSize: 'contain',
+          backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
-          imageRendering: 'pixelated', // Keep pixel art crisp
+          imageRendering: 'pixelated',
           transition: isHit ? 'all 0.2s ease-out' : 'none',
           opacity: isHit ? 0 : ghostOpacity,
           filter: `drop-shadow(0 0 ${actualSize / 6}px ${color})`,
