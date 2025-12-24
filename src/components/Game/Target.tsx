@@ -24,6 +24,51 @@ export function Target({ target, isHit = false, isGhost = false, shrinkProgress 
     ? 0.3 + 0.7 * Math.abs(Math.sin((Date.now() - target.spawnTime) / 800))
     : 1;
 
+  // Render emoji-based targets for space theme
+  if (['ufo', 'alien', 'meteor', 'planet'].includes(target.type)) {
+    const emoji = {
+      ufo: '🛸',
+      alien: '👽',
+      meteor: '☄️',
+      planet: '🪐',
+    }[target.type] || '🎯';
+
+    return (
+      <div
+        className={`absolute flex items-center justify-center transition-transform ${
+          isHit ? 'scale-150 opacity-0' : ''
+        }`}
+        style={{
+          left: target.x - halfSize,
+          top: target.y - halfSize,
+          width: actualSize,
+          height: actualSize,
+          transition: isHit ? 'all 0.2s ease-out' : 'none',
+          opacity: isHit ? 0 : ghostOpacity,
+          filter: `drop-shadow(0 0 ${actualSize / 4}px ${color})`,
+        }}
+      >
+        <span
+          style={{
+            fontSize: actualSize * 0.9,
+            lineHeight: 1,
+          }}
+          role="img"
+          aria-label={target.type}
+        >
+          {emoji}
+        </span>
+        {/* Health indicator for multi-hit targets */}
+        {target.health > 1 && (
+          <div className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+            {target.health}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Original circular targets for normal, fast, small, bonus
   return (
     <div
       className={`absolute rounded-full flex items-center justify-center transition-transform ${

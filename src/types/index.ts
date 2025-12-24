@@ -38,7 +38,7 @@ export interface Target {
   baseSize: number; // original size before shrinking
 }
 
-export type TargetType = 'normal' | 'fast' | 'small' | 'bonus';
+export type TargetType = 'normal' | 'fast' | 'small' | 'bonus' | 'ufo' | 'alien' | 'meteor' | 'planet';
 
 export type MovementPattern = 'linear' | 'sine' | 'random' | 'static';
 
@@ -74,6 +74,10 @@ export interface LevelConfig {
     fast: number;
     small: number;
     bonus: number;
+    ufo: number;
+    alien: number;
+    meteor: number;
+    planet: number;
   };
   movementWeights: {
     linear: number;

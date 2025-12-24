@@ -201,6 +201,14 @@ export function getTargetColor(type: TargetType): string {
       return '#eab308'; // yellow
     case 'bonus':
       return '#22c55e'; // green
+    case 'ufo':
+      return '#8b5cf6'; // purple
+    case 'alien':
+      return '#06b6d4'; // cyan
+    case 'meteor':
+      return '#fb923c'; // orange-400
+    case 'planet':
+      return '#3b82f6'; // blue
     default:
       return '#ef4444';
   }

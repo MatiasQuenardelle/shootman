@@ -13,10 +13,13 @@ export function StartScreen({ onStart, onLevelSelect, onShowInstructions, highSc
     <div className="fixed inset-0 bg-gradient-to-b from-slate-900 to-slate-800 flex flex-col items-center justify-center p-4">
       {/* Title */}
       <div className="text-center mb-12">
-        <h1 className="text-6xl md:text-8xl font-bold text-white mb-2">
+        <h1 className="text-6xl md:text-8xl font-bold text-white mb-2 drop-shadow-[0_0_20px_rgba(239,68,68,0.5)]">
           <span className="text-red-500">SHOOT</span>MAN
         </h1>
-        <p className="text-slate-400 text-lg">Hand Tracking Shooting Game</p>
+        <p className="text-slate-400 text-lg">Hand Tracking Space Shooter</p>
+        <div className="text-4xl mt-2">
+          <span role="img" aria-label="space theme">🛸 👽 ☄️ 🪐</span>
+        </div>
       </div>
 
       {/* Gun gesture illustration */}
