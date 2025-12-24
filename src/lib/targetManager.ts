@@ -14,6 +14,10 @@ function weightedRandomTargetType(levelConfig?: LevelConfig): TargetType {
     fast: GAME_CONFIG.TARGET_TYPES.fast.spawnWeight,
     small: GAME_CONFIG.TARGET_TYPES.small.spawnWeight,
     bonus: GAME_CONFIG.TARGET_TYPES.bonus.spawnWeight,
+    ufo: GAME_CONFIG.TARGET_TYPES.ufo.spawnWeight,
+    alien: GAME_CONFIG.TARGET_TYPES.alien.spawnWeight,
+    meteor: GAME_CONFIG.TARGET_TYPES.meteor.spawnWeight,
+    planet: GAME_CONFIG.TARGET_TYPES.planet.spawnWeight,
   };
 
   const entries = Object.entries(weights) as [TargetType, number][];
