@@ -43,9 +43,13 @@ export function Target({ target, isHit = false, isGhost = false, shrinkProgress 
     // Use target ID to pick a consistent variant (0, 1, or 2)
     const variant = target.id.charCodeAt(0) % 3;
 
-    // Calculate background position (percentage-based for 3x3 grid)
-    const bgPosX = variant * 50; // 0%, 50%, 100%
-    const bgPosY = row * 50;     // 0%, 50%, 100%
+    // Calculate background position
+    // Zoom in more (450%) to crop out the green corner brackets
+    // Adjust positions to center on each sprite within the zoomed view
+    const colOffsets = [8, 50, 92]; // percentage positions for each column
+    const rowOffsets = [6, 50, 94]; // percentage positions for each row
+    const bgPosX = colOffsets[variant];
+    const bgPosY = rowOffsets[row];
 
     return (
       <div
@@ -58,7 +62,7 @@ export function Target({ target, isHit = false, isGhost = false, shrinkProgress 
           width: actualSize,
           height: actualSize,
           backgroundImage: 'url(/sprites.png)',
-          backgroundSize: '300% 300%',
+          backgroundSize: '450% 450%',
           backgroundPosition: `${bgPosX}% ${bgPosY}%`,
           backgroundRepeat: 'no-repeat',
           imageRendering: 'pixelated', // Keep pixel art crisp
