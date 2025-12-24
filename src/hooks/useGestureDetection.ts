@@ -177,13 +177,12 @@ export function useGestureDetection(
 
     // Detect shooting (thumb moves toward index finger)
     const thumbMovement = lastThumbDistanceRef.current - currentThumbDistance;
-    // Also detect if thumb is close enough (absolute position check)
-    const thumbIsClose = currentThumbDistance < 0.08;
     const canShoot = now - lastShootTimeRef.current > GAME_CONFIG.SHOOT_COOLDOWN;
+    // Only shoot on deliberate thumb movement - no shortcuts that cause false positives
     const isShooting =
       isGunShape &&
       canShoot &&
-      (thumbMovement > GAME_CONFIG.SHOOT_THRESHOLD || (thumbIsClose && thumbMovement > 0.01)) &&
+      thumbMovement > GAME_CONFIG.SHOOT_THRESHOLD &&
       lastThumbDistanceRef.current > 0;
 
     if (isShooting) {
