@@ -11,7 +11,7 @@ import { LevelComplete } from '@/components/UI/LevelComplete';
 import { LevelFailed } from '@/components/UI/LevelFailed';
 import { GameState, LevelConfig } from '@/types';
 import { GAME_CONFIG, LEVELS } from '@/constants/game';
-import { audioManager } from '@/lib/audio';
+import { audioManager, setupAudioUnlock } from '@/lib/audio';
 
 const INITIAL_GAME_STATE: GameState = {
   status: 'idle',
@@ -40,6 +40,12 @@ export default function Home() {
   const [levelStars, setLevelStars] = useState<Record<number, number>>({});
   const [levelScores, setLevelScores] = useState<Record<number, number>>({});
   const [failReason, setFailReason] = useState<'time' | 'lives'>('time');
+
+  // Set up audio unlock for iOS Safari (must happen on user interaction)
+  useEffect(() => {
+    const cleanup = setupAudioUnlock();
+    return cleanup;
+  }, []);
 
   // Load saved progress from localStorage
   useEffect(() => {

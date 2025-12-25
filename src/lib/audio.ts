@@ -1,19 +1,69 @@
 type SoundEffect = 'shoot' | 'hit' | 'miss' | 'gameOver' | 'levelUp' | 'combo';
 
+// Safari/iOS compatibility
+const AudioContextClass = typeof window !== 'undefined'
+  ? (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)
+  : null;
+
 class AudioManager {
   private audioContext: AudioContext | null = null;
   private sounds: Map<SoundEffect, AudioBuffer> = new Map();
   private enabled: boolean = true;
   private volume: number = 0.5;
+  private initialized: boolean = false;
+  private initPromise: Promise<void> | null = null;
 
   async initialize(): Promise<void> {
-    if (this.audioContext) return;
+    // Return existing promise if already initializing
+    if (this.initPromise) return this.initPromise;
 
+    // Skip if already initialized
+    if (this.initialized && this.audioContext) {
+      // Still need to resume on iOS - every user gesture should try to resume
+      await this.resumeContext();
+      return;
+    }
+
+    this.initPromise = this._doInitialize();
+    return this.initPromise;
+  }
+
+  private async _doInitialize(): Promise<void> {
     try {
-      this.audioContext = new AudioContext();
-      await this.generateSounds();
+      if (!AudioContextClass) {
+        console.warn('AudioContext not supported');
+        return;
+      }
+
+      // Create new context if needed
+      if (!this.audioContext) {
+        this.audioContext = new AudioContextClass();
+      }
+
+      // Resume context (required for iOS Safari)
+      await this.resumeContext();
+
+      // Generate sounds if not already done
+      if (this.sounds.size === 0) {
+        await this.generateSounds();
+      }
+
+      this.initialized = true;
     } catch (error) {
       console.error('Failed to initialize audio:', error);
+      this.initPromise = null;
+    }
+  }
+
+  private async resumeContext(): Promise<void> {
+    if (!this.audioContext) return;
+
+    if (this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+      } catch (error) {
+        console.warn('Failed to resume audio context:', error);
+      }
     }
   }
 
@@ -153,21 +203,30 @@ class AudioManager {
     const buffer = this.sounds.get(sound);
     if (!buffer) return;
 
-    // Resume audio context if suspended (required for autoplay policy)
+    // Resume audio context if suspended (required for autoplay policy on iOS Safari)
     if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume();
+      this.audioContext.resume().catch(() => {
+        // Ignore resume errors - will work on next user interaction
+      });
     }
 
-    const source = this.audioContext.createBufferSource();
-    const gainNode = this.audioContext.createGain();
+    // Don't try to play if context isn't running
+    if (this.audioContext.state !== 'running') return;
 
-    source.buffer = buffer;
-    gainNode.gain.value = this.volume;
+    try {
+      const source = this.audioContext.createBufferSource();
+      const gainNode = this.audioContext.createGain();
 
-    source.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
+      source.buffer = buffer;
+      gainNode.gain.value = this.volume;
 
-    source.start();
+      source.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+
+      source.start(0);
+    } catch (error) {
+      console.warn('Failed to play sound:', error);
+    }
   }
 
   setEnabled(enabled: boolean): void {
@@ -189,3 +248,32 @@ class AudioManager {
 
 // Singleton instance
 export const audioManager = new AudioManager();
+
+// iOS Safari audio unlock helper - call this once on first user interaction
+export function setupAudioUnlock(): () => void {
+  let unlocked = false;
+
+  const unlock = async () => {
+    if (unlocked) return;
+
+    await audioManager.initialize();
+    unlocked = true;
+
+    // Remove listeners after successful unlock
+    document.removeEventListener('touchstart', unlock, true);
+    document.removeEventListener('touchend', unlock, true);
+    document.removeEventListener('click', unlock, true);
+  };
+
+  // Add listeners at capture phase to catch the first interaction
+  document.addEventListener('touchstart', unlock, true);
+  document.addEventListener('touchend', unlock, true);
+  document.addEventListener('click', unlock, true);
+
+  // Return cleanup function
+  return () => {
+    document.removeEventListener('touchstart', unlock, true);
+    document.removeEventListener('touchend', unlock, true);
+    document.removeEventListener('click', unlock, true);
+  };
+}
