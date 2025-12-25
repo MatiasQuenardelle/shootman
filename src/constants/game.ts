@@ -17,11 +17,14 @@ export const GAME_CONFIG = {
   MAX_DIFFICULTY: 5,
 
   // Hand tracking
-  HAND_DETECTION_CONFIDENCE: 0.3, // lower = more detections but more noise
-  SHOOT_THRESHOLD: 0.045, // thumb movement threshold (higher = need more deliberate movement)
+  HAND_DETECTION_CONFIDENCE: 0.2, // lower = more detections but more noise (lowered for low-light)
+  SHOOT_THRESHOLD: 0.018, // thumb movement threshold (lowered for better low-light sensitivity)
   SHOOT_COOLDOWN: 300, // ms between shots (prevents accidental double-shots)
+  SHOOT_THRESHOLD_ABSOLUTE: 0.06, // absolute thumb-to-index distance threshold for shooting
   AIM_SMOOTHING: 0.25, // lower = smoother/less jittery, higher = more responsive
   AIM_SENSITIVITY: 1.1, // multiplier for aim movement (higher = faster cursor)
+  AIM_FREEZE_THRESHOLD: 0.015, // thumb movement that triggers aim freeze (prevents aim drift while shooting)
+  AIM_FREEZE_DURATION: 200, // ms to keep aim frozen after shoot (prevents post-shoot drift)
 
   // Game
   STARTING_LIVES: 3,

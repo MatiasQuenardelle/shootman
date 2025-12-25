@@ -79,6 +79,8 @@ export function useGestureDetection(
   const lastShootTimeRef = useRef<number>(0);
   const smoothedAimRef = useRef<AimPosition | null>(null);
   const lastDetectionTimeRef = useRef<number>(0);
+  const frozenAimRef = useRef<AimPosition | null>(null);
+  const aimFreezeStartRef = useRef<number>(0);
   const [gestureState, setGestureState] = useState<GestureState>({
     isGunShape: false,
     isShooting: false,
@@ -178,15 +180,31 @@ export function useGestureDetection(
     // Detect shooting (thumb moves toward index finger)
     const thumbMovement = lastThumbDistanceRef.current - currentThumbDistance;
     const canShoot = now - lastShootTimeRef.current > GAME_CONFIG.SHOOT_COOLDOWN;
-    // Only shoot on deliberate thumb movement - no shortcuts that cause false positives
-    const isShooting =
-      isGunShape &&
-      canShoot &&
-      thumbMovement > GAME_CONFIG.SHOOT_THRESHOLD &&
-      lastThumbDistanceRef.current > 0;
+
+    // Two shooting triggers for better sensitivity in low light:
+    // 1. Movement-based: thumb moving toward index finger (original method)
+    const movementTrigger = thumbMovement > GAME_CONFIG.SHOOT_THRESHOLD && lastThumbDistanceRef.current > 0;
+    // 2. Absolute position: thumb is very close to index finger (works even with jittery tracking)
+    const absoluteTrigger = currentThumbDistance < GAME_CONFIG.SHOOT_THRESHOLD_ABSOLUTE && lastThumbDistanceRef.current >= GAME_CONFIG.SHOOT_THRESHOLD_ABSOLUTE;
+
+    const isShooting = isGunShape && canShoot && (movementTrigger || absoluteTrigger);
 
     if (isShooting) {
       lastShootTimeRef.current = now;
+    }
+
+    // Freeze aim when thumb starts moving toward index (prevents aim drift while shooting)
+    const isThumbMovingToShoot = thumbMovement > GAME_CONFIG.AIM_FREEZE_THRESHOLD && lastThumbDistanceRef.current > 0;
+    const timeSinceShot = now - lastShootTimeRef.current;
+    const shouldFreezeAim = isThumbMovingToShoot || timeSinceShot < GAME_CONFIG.AIM_FREEZE_DURATION;
+
+    if (shouldFreezeAim && !frozenAimRef.current && smoothedAimRef.current) {
+      // Start freezing: capture current aim position
+      frozenAimRef.current = { ...smoothedAimRef.current };
+      aimFreezeStartRef.current = now;
+    } else if (!shouldFreezeAim && frozenAimRef.current) {
+      // Stop freezing: release frozen aim
+      frozenAimRef.current = null;
     }
 
     lastThumbDistanceRef.current = currentThumbDistance;
@@ -197,37 +215,60 @@ export function useGestureDetection(
     // Show crosshair whenever hand is detected (not just gun shape)
     let aimPosition: AimPosition | null = null;
     if (handLandmarks) {
-      // Use index fingertip as primary reference for precise finger-based aiming
-      const indexTip = landmarks[HAND_LANDMARKS.INDEX_TIP];
-      // Blend with index MCP (knuckle) for slight stability
-      const indexMCP = landmarks[HAND_LANDMARKS.INDEX_MCP];
-      const stableX = indexTip.x * 0.85 + indexMCP.x * 0.15;
-      const stableY = indexTip.y * 0.85 + indexMCP.y * 0.15;
-
-      const sensitivity = GAME_CONFIG.AIM_SENSITIVITY;
-      const centerX = 0.5;
-      const centerY = 0.5;
-
-      // Apply sensitivity multiplier around center point
-      // Mirror X: move hand right -> crosshair moves right
-      const adjustedX = centerX + (centerX - stableX) * sensitivity;
-      const adjustedY = centerY + (stableY - centerY) * sensitivity;
-
-      // Convert to screen coordinates and clamp to screen bounds
-      const rawX = Math.max(0, Math.min(screenDimensions.width, adjustedX * screenDimensions.width));
-      const rawY = Math.max(0, Math.min(screenDimensions.height, adjustedY * screenDimensions.height));
-
-      // Apply smoothing
-      if (smoothedAimRef.current) {
-        const smoothing = GAME_CONFIG.AIM_SMOOTHING;
-        aimPosition = {
-          x: smoothedAimRef.current.x + (rawX - smoothedAimRef.current.x) * smoothing,
-          y: smoothedAimRef.current.y + (rawY - smoothedAimRef.current.y) * smoothing,
+      // If aim is frozen (during shooting motion), use frozen position
+      if (frozenAimRef.current) {
+        aimPosition = frozenAimRef.current;
+        // Still update smoothedAimRef in background so transition is smooth when unfreezing
+        const indexTip = landmarks[HAND_LANDMARKS.INDEX_TIP];
+        const indexMCP = landmarks[HAND_LANDMARKS.INDEX_MCP];
+        const stableX = indexTip.x * 0.85 + indexMCP.x * 0.15;
+        const stableY = indexTip.y * 0.85 + indexMCP.y * 0.15;
+        const sensitivity = GAME_CONFIG.AIM_SENSITIVITY;
+        const centerX = 0.5;
+        const centerY = 0.5;
+        const adjustedX = centerX + (centerX - stableX) * sensitivity;
+        const adjustedY = centerY + (stableY - centerY) * sensitivity;
+        const rawX = Math.max(0, Math.min(screenDimensions.width, adjustedX * screenDimensions.width));
+        const rawY = Math.max(0, Math.min(screenDimensions.height, adjustedY * screenDimensions.height));
+        // Use very light smoothing in background to prepare for unfreeze
+        smoothedAimRef.current = {
+          x: smoothedAimRef.current!.x + (rawX - smoothedAimRef.current!.x) * 0.1,
+          y: smoothedAimRef.current!.y + (rawY - smoothedAimRef.current!.y) * 0.1,
         };
       } else {
-        aimPosition = { x: rawX, y: rawY };
+        // Normal aim calculation
+        // Use index fingertip as primary reference for precise finger-based aiming
+        const indexTip = landmarks[HAND_LANDMARKS.INDEX_TIP];
+        // Blend with index MCP (knuckle) for slight stability
+        const indexMCP = landmarks[HAND_LANDMARKS.INDEX_MCP];
+        const stableX = indexTip.x * 0.85 + indexMCP.x * 0.15;
+        const stableY = indexTip.y * 0.85 + indexMCP.y * 0.15;
+
+        const sensitivity = GAME_CONFIG.AIM_SENSITIVITY;
+        const centerX = 0.5;
+        const centerY = 0.5;
+
+        // Apply sensitivity multiplier around center point
+        // Mirror X: move hand right -> crosshair moves right
+        const adjustedX = centerX + (centerX - stableX) * sensitivity;
+        const adjustedY = centerY + (stableY - centerY) * sensitivity;
+
+        // Convert to screen coordinates and clamp to screen bounds
+        const rawX = Math.max(0, Math.min(screenDimensions.width, adjustedX * screenDimensions.width));
+        const rawY = Math.max(0, Math.min(screenDimensions.height, adjustedY * screenDimensions.height));
+
+        // Apply smoothing
+        if (smoothedAimRef.current) {
+          const smoothing = GAME_CONFIG.AIM_SMOOTHING;
+          aimPosition = {
+            x: smoothedAimRef.current.x + (rawX - smoothedAimRef.current.x) * smoothing,
+            y: smoothedAimRef.current.y + (rawY - smoothedAimRef.current.y) * smoothing,
+          };
+        } else {
+          aimPosition = { x: rawX, y: rawY };
+        }
+        smoothedAimRef.current = aimPosition;
       }
-      smoothedAimRef.current = aimPosition;
     }
 
     // Calculate confidence based on how well the gesture matches
