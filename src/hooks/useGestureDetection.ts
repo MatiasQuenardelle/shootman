@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { HandLandmarks, GestureState, AimPosition } from '@/types';
 import { HAND_LANDMARKS, GAME_CONFIG } from '@/constants/game';
+import { settingsManager } from '@/lib/settingsManager';
 
 interface UseGestureDetectionReturn {
   gestureState: GestureState;
@@ -12,6 +13,7 @@ interface UseGestureDetectionReturn {
     ringCurled: boolean;
     pinkyCurled: boolean;
     thumbDistance: number;
+    isFist: boolean;
   } | null;
 }
 
@@ -38,14 +40,11 @@ function isFingerExtended(
   const dip = landmarks[dipIndex];
   const tip = landmarks[tipIndex];
 
-  // Finger is extended if tip is further from wrist than pip
-  // and the finger is roughly straight
   const mcpToPip = distance(mcp, pip);
   const pipToDip = distance(pip, dip);
   const dipToTip = distance(dip, tip);
   const mcpToTip = distance(mcp, tip);
 
-  // Check if finger is straight (total length ~ sum of segments)
   const totalSegments = mcpToPip + pipToDip + dipToTip;
   const straightness = mcpToTip / totalSegments;
 
@@ -63,17 +62,32 @@ function isFingerCurled(
   const tip = landmarks[tipIndex];
   const wrist = landmarks[wristIndex];
 
-  // Finger is curled if tip is close to palm/wrist area
   const tipToWrist = distance(tip, wrist);
   const mcpToWrist = distance(mcp, wrist);
 
-  // If tip is closer to wrist than expected for an extended finger
   return tipToWrist < mcpToWrist * 1.3;
+}
+
+// Check if all fingers are curled (fist gesture for reload)
+function isFistGesture(landmarks: { x: number; y: number; z: number }[]): boolean {
+  const indexCurled = isFingerCurled(landmarks, HAND_LANDMARKS.INDEX_MCP, HAND_LANDMARKS.INDEX_TIP, HAND_LANDMARKS.WRIST);
+  const middleCurled = isFingerCurled(landmarks, HAND_LANDMARKS.MIDDLE_MCP, HAND_LANDMARKS.MIDDLE_TIP, HAND_LANDMARKS.WRIST);
+  const ringCurled = isFingerCurled(landmarks, HAND_LANDMARKS.RING_MCP, HAND_LANDMARKS.RING_TIP, HAND_LANDMARKS.WRIST);
+  const pinkyCurled = isFingerCurled(landmarks, HAND_LANDMARKS.PINKY_MCP, HAND_LANDMARKS.PINKY_TIP, HAND_LANDMARKS.WRIST);
+
+  // Also check thumb is curled
+  const thumbTip = landmarks[HAND_LANDMARKS.THUMB_TIP];
+  const indexMCP = landmarks[HAND_LANDMARKS.INDEX_MCP];
+  const thumbToIndex = distance(thumbTip, indexMCP);
+  const thumbCurled = thumbToIndex < 0.1;
+
+  return indexCurled && middleCurled && ringCurled && pinkyCurled && thumbCurled;
 }
 
 export function useGestureDetection(
   handLandmarks: HandLandmarks | null,
-  screenDimensions: { width: number; height: number }
+  screenDimensions: { width: number; height: number },
+  playerId?: 1 | 2
 ): UseGestureDetectionReturn {
   const lastThumbDistanceRef = useRef<number>(0);
   const lastShootTimeRef = useRef<number>(0);
@@ -81,35 +95,45 @@ export function useGestureDetection(
   const lastDetectionTimeRef = useRef<number>(0);
   const frozenAimRef = useRef<AimPosition | null>(null);
   const aimFreezeStartRef = useRef<number>(0);
+  const fistStartTimeRef = useRef<number>(0);
   const [gestureState, setGestureState] = useState<GestureState>({
     isGunShape: false,
     isShooting: false,
+    isReloading: false,
+    isFist: false,
     aimPosition: null,
     confidence: 0,
   });
   const [debugInfo, setDebugInfo] = useState<UseGestureDetectionReturn['debugInfo']>(null);
 
-  // Persistence duration in ms - keep showing crosshair briefly after detection drops
   const PERSISTENCE_DURATION = 500;
+  const RELOAD_HOLD_TIME = 500; // Hold fist for 500ms to reload
 
   const detectGesture = useCallback(() => {
     const now = Date.now();
+    const settings = settingsManager.getAll();
+    const sensitivity = settings.sensitivity;
+    const leftHandMode = settings.leftHandMode;
 
     if (!handLandmarks || handLandmarks.landmarks.length < 21) {
-      // Keep showing last position briefly for smoother experience
       const timeSinceLastDetection = now - lastDetectionTimeRef.current;
       if (smoothedAimRef.current && timeSinceLastDetection < PERSISTENCE_DURATION) {
         setGestureState({
           isGunShape: false,
           isShooting: false,
+          isReloading: false,
+          isFist: false,
           aimPosition: smoothedAimRef.current,
           confidence: 0.5,
         });
       } else {
         smoothedAimRef.current = null;
+        fistStartTimeRef.current = 0;
         setGestureState({
           isGunShape: false,
           isShooting: false,
+          isReloading: false,
+          isFist: false,
           aimPosition: null,
           confidence: 0,
         });
@@ -118,12 +142,24 @@ export function useGestureDetection(
       return;
     }
 
-    // Update last detection time
     lastDetectionTimeRef.current = now;
-
     const landmarks = handLandmarks.landmarks;
 
-    // Check if index finger is extended
+    // Check for fist gesture (reload)
+    const isFist = isFistGesture(landmarks);
+    let isReloading = false;
+
+    if (isFist) {
+      if (fistStartTimeRef.current === 0) {
+        fistStartTimeRef.current = now;
+      } else if (now - fistStartTimeRef.current >= RELOAD_HOLD_TIME) {
+        isReloading = true;
+      }
+    } else {
+      fistStartTimeRef.current = 0;
+    }
+
+    // Check finger states
     const indexExtended = isFingerExtended(
       landmarks,
       HAND_LANDMARKS.INDEX_MCP,
@@ -132,7 +168,6 @@ export function useGestureDetection(
       HAND_LANDMARKS.INDEX_TIP
     );
 
-    // Check if middle finger is extended
     const middleExtended = isFingerExtended(
       landmarks,
       HAND_LANDMARKS.MIDDLE_MCP,
@@ -141,7 +176,6 @@ export function useGestureDetection(
       HAND_LANDMARKS.MIDDLE_TIP
     );
 
-    // Check if ring finger is curled
     const ringCurled = isFingerCurled(
       landmarks,
       HAND_LANDMARKS.RING_MCP,
@@ -149,7 +183,6 @@ export function useGestureDetection(
       HAND_LANDMARKS.WRIST
     );
 
-    // Check if pinky is curled
     const pinkyCurled = isFingerCurled(
       landmarks,
       HAND_LANDMARKS.PINKY_MCP,
@@ -157,107 +190,95 @@ export function useGestureDetection(
       HAND_LANDMARKS.WRIST
     );
 
-    // Gun shape = index extended (more lenient - just need pointing finger)
-    // Full gun shape for better accuracy: index and middle extended, ring and pinky curled
     const isFullGunShape = indexExtended && middleExtended && ringCurled && pinkyCurled;
-    // Lenient: just index finger extended is enough
-    const isGunShape = indexExtended || isFullGunShape;
+    const isGunShape = (indexExtended || isFullGunShape) && !isFist;
 
     // Calculate thumb distance for shoot detection
-    // Use multiple reference points for more reliable detection
     const thumbTip = landmarks[HAND_LANDMARKS.THUMB_TIP];
-    const thumbIP = landmarks[HAND_LANDMARKS.THUMB_IP];
     const indexBase = landmarks[HAND_LANDMARKS.INDEX_MCP];
     const indexPIP = landmarks[HAND_LANDMARKS.INDEX_PIP];
 
-    // Primary: thumb tip to index base
     const thumbToIndexBase = distance(thumbTip, indexBase);
-    // Secondary: thumb tip to index PIP (middle of index finger)
     const thumbToIndexPIP = distance(thumbTip, indexPIP);
-    // Use the minimum distance for better detection
     const currentThumbDistance = Math.min(thumbToIndexBase, thumbToIndexPIP);
 
-    // Detect shooting (thumb moves toward index finger)
+    // Detect shooting
     const thumbMovement = lastThumbDistanceRef.current - currentThumbDistance;
     const canShoot = now - lastShootTimeRef.current > GAME_CONFIG.SHOOT_COOLDOWN;
 
-    // Two shooting triggers for better sensitivity in low light:
-    // 1. Movement-based: thumb moving toward index finger (original method)
     const movementTrigger = thumbMovement > GAME_CONFIG.SHOOT_THRESHOLD && lastThumbDistanceRef.current > 0;
-    // 2. Absolute position: thumb is very close to index finger (works even with jittery tracking)
     const absoluteTrigger = currentThumbDistance < GAME_CONFIG.SHOOT_THRESHOLD_ABSOLUTE && lastThumbDistanceRef.current >= GAME_CONFIG.SHOOT_THRESHOLD_ABSOLUTE;
 
-    const isShooting = isGunShape && canShoot && (movementTrigger || absoluteTrigger);
+    const isShooting = isGunShape && canShoot && (movementTrigger || absoluteTrigger) && !isReloading;
 
     if (isShooting) {
       lastShootTimeRef.current = now;
     }
 
-    // Freeze aim when thumb starts moving toward index (prevents aim drift while shooting)
+    // Aim freeze during shooting
     const isThumbMovingToShoot = thumbMovement > GAME_CONFIG.AIM_FREEZE_THRESHOLD && lastThumbDistanceRef.current > 0;
     const timeSinceShot = now - lastShootTimeRef.current;
     const shouldFreezeAim = isThumbMovingToShoot || timeSinceShot < GAME_CONFIG.AIM_FREEZE_DURATION;
 
     if (shouldFreezeAim && !frozenAimRef.current && smoothedAimRef.current) {
-      // Start freezing: capture current aim position
       frozenAimRef.current = { ...smoothedAimRef.current };
       aimFreezeStartRef.current = now;
     } else if (!shouldFreezeAim && frozenAimRef.current) {
-      // Stop freezing: release frozen aim
       frozenAimRef.current = null;
     }
 
     lastThumbDistanceRef.current = currentThumbDistance;
 
-    // Calculate aim position from index fingertip for precise aiming
-    // MediaPipe coordinates are normalized (0-1)
-    // Mirror X so hand movement matches crosshair movement
-    // Show crosshair whenever hand is detected (not just gun shape)
+    // Calculate aim position
     let aimPosition: AimPosition | null = null;
     if (handLandmarks) {
-      // If aim is frozen (during shooting motion), use frozen position
       if (frozenAimRef.current) {
         aimPosition = frozenAimRef.current;
-        // Still update smoothedAimRef in background so transition is smooth when unfreezing
         const indexTip = landmarks[HAND_LANDMARKS.INDEX_TIP];
         const indexMCP = landmarks[HAND_LANDMARKS.INDEX_MCP];
         const stableX = indexTip.x * 0.85 + indexMCP.x * 0.15;
         const stableY = indexTip.y * 0.85 + indexMCP.y * 0.15;
-        const sensitivity = GAME_CONFIG.AIM_SENSITIVITY;
+        const appliedSensitivity = GAME_CONFIG.AIM_SENSITIVITY * sensitivity;
         const centerX = 0.5;
         const centerY = 0.5;
-        const adjustedX = centerX + (centerX - stableX) * sensitivity;
-        const adjustedY = centerY + (stableY - centerY) * sensitivity;
+
+        // Apply left-hand mode (no mirror)
+        let adjustedX: number;
+        if (leftHandMode) {
+          adjustedX = centerX + (stableX - centerX) * appliedSensitivity;
+        } else {
+          adjustedX = centerX + (centerX - stableX) * appliedSensitivity;
+        }
+        const adjustedY = centerY + (stableY - centerY) * appliedSensitivity;
+
         const rawX = Math.max(0, Math.min(screenDimensions.width, adjustedX * screenDimensions.width));
         const rawY = Math.max(0, Math.min(screenDimensions.height, adjustedY * screenDimensions.height));
-        // Use very light smoothing in background to prepare for unfreeze
         smoothedAimRef.current = {
           x: smoothedAimRef.current!.x + (rawX - smoothedAimRef.current!.x) * 0.1,
           y: smoothedAimRef.current!.y + (rawY - smoothedAimRef.current!.y) * 0.1,
         };
       } else {
-        // Normal aim calculation
-        // Use index fingertip as primary reference for precise finger-based aiming
         const indexTip = landmarks[HAND_LANDMARKS.INDEX_TIP];
-        // Blend with index MCP (knuckle) for slight stability
         const indexMCP = landmarks[HAND_LANDMARKS.INDEX_MCP];
         const stableX = indexTip.x * 0.85 + indexMCP.x * 0.15;
         const stableY = indexTip.y * 0.85 + indexMCP.y * 0.15;
 
-        const sensitivity = GAME_CONFIG.AIM_SENSITIVITY;
+        const appliedSensitivity = GAME_CONFIG.AIM_SENSITIVITY * sensitivity;
         const centerX = 0.5;
         const centerY = 0.5;
 
-        // Apply sensitivity multiplier around center point
-        // Mirror X: move hand right -> crosshair moves right
-        const adjustedX = centerX + (centerX - stableX) * sensitivity;
-        const adjustedY = centerY + (stableY - centerY) * sensitivity;
+        // Apply left-hand mode
+        let adjustedX: number;
+        if (leftHandMode) {
+          adjustedX = centerX + (stableX - centerX) * appliedSensitivity;
+        } else {
+          adjustedX = centerX + (centerX - stableX) * appliedSensitivity;
+        }
+        const adjustedY = centerY + (stableY - centerY) * appliedSensitivity;
 
-        // Convert to screen coordinates and clamp to screen bounds
         const rawX = Math.max(0, Math.min(screenDimensions.width, adjustedX * screenDimensions.width));
         const rawY = Math.max(0, Math.min(screenDimensions.height, adjustedY * screenDimensions.height));
 
-        // Apply smoothing
         if (smoothedAimRef.current) {
           const smoothing = GAME_CONFIG.AIM_SMOOTHING;
           aimPosition = {
@@ -271,7 +292,6 @@ export function useGestureDetection(
       }
     }
 
-    // Calculate confidence based on how well the gesture matches
     const gestureScore =
       (indexExtended ? 0.25 : 0) +
       (middleExtended ? 0.25 : 0) +
@@ -281,6 +301,8 @@ export function useGestureDetection(
     setGestureState({
       isGunShape,
       isShooting,
+      isReloading,
+      isFist,
       aimPosition,
       confidence: gestureScore,
     });
@@ -291,8 +313,9 @@ export function useGestureDetection(
       ringCurled,
       pinkyCurled,
       thumbDistance: currentThumbDistance,
+      isFist,
     });
-  }, [handLandmarks, screenDimensions]);
+  }, [handLandmarks, screenDimensions, playerId]);
 
   useEffect(() => {
     detectGesture();

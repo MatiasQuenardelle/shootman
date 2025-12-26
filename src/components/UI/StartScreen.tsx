@@ -1,14 +1,45 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { audioManager, SoundMode } from '@/lib/audio';
+
 interface StartScreenProps {
   onStart: () => void;
   onLevelSelect: () => void;
   onShowInstructions: () => void;
+  onSettings: () => void;
+  onCoop: () => void;
+  onVersus: () => void;
   highScore: number;
   totalStars: number;
 }
 
-export function StartScreen({ onStart, onLevelSelect, onShowInstructions, highScore, totalStars }: StartScreenProps) {
+export function StartScreen({
+  onStart,
+  onLevelSelect,
+  onShowInstructions,
+  onSettings,
+  onCoop,
+  onVersus,
+  highScore,
+  totalStars,
+}: StartScreenProps) {
+  const [soundMode, setSoundMode] = useState<SoundMode>('arcade');
+  const [showMultiplayer, setShowMultiplayer] = useState(false);
+
+  useEffect(() => {
+    audioManager.loadSoundModePreference();
+    setSoundMode(audioManager.getSoundMode());
+  }, []);
+
+  const handleToggleSoundMode = () => {
+    const newMode = audioManager.toggleSoundMode();
+    setSoundMode(newMode);
+    audioManager.initialize().then(() => {
+      audioManager.play('shoot');
+    });
+  };
+
   return (
     <div className="fixed inset-0 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 overflow-hidden">
       {/* Animated background stars */}
@@ -24,7 +55,7 @@ export function StartScreen({ onStart, onLevelSelect, onShowInstructions, highSc
       </div>
 
       {/* Title */}
-      <div className="text-center mb-8 md:mb-12 relative z-10">
+      <div className="text-center mb-6 md:mb-10 relative z-10">
         <div className="mb-4">
           <h1 className="text-5xl sm:text-6xl md:text-8xl font-black tracking-tight">
             <span className="text-red-500 animate-glow-pulse">SHOOT</span>
@@ -46,9 +77,9 @@ export function StartScreen({ onStart, onLevelSelect, onShowInstructions, highSc
       </div>
 
       {/* Gun gesture illustration */}
-      <div className="mb-8 md:mb-12 text-center relative z-10">
+      <div className="mb-6 md:mb-10 text-center relative z-10">
         <div className="relative inline-block">
-          <div className="text-7xl md:text-8xl animate-pulse-scale">
+          <div className="text-6xl md:text-7xl animate-pulse-scale">
             <span role="img" aria-label="mano apuntando">👉</span>
           </div>
           <div className="absolute -right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-yellow-400/20 rounded-full animate-ping" />
@@ -58,32 +89,92 @@ export function StartScreen({ onStart, onLevelSelect, onShowInstructions, highSc
         </p>
       </div>
 
-      {/* Buttons */}
-      <div className="flex flex-col gap-3 md:gap-4 w-full max-w-xs relative z-10">
-        <button
-          onClick={onLevelSelect}
-          className="group relative bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold py-4 px-8 rounded-xl text-xl transition-all duration-300 shadow-lg shadow-red-500/40 hover:shadow-red-500/60 hover:scale-105 active:scale-95 overflow-hidden"
-        >
-          <span className="relative z-10">NIVELES</span>
-          <div className="absolute inset-0 animate-shimmer" />
-        </button>
-        <button
-          onClick={onStart}
-          className="group bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105 active:scale-95"
-        >
-          MODO INFINITO
-        </button>
-        <button
-          onClick={onShowInstructions}
-          className="bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 border border-slate-700 hover:border-slate-600"
-        >
-          Cómo Jugar
-        </button>
-      </div>
+      {/* Main Buttons */}
+      {!showMultiplayer ? (
+        <div className="flex flex-col gap-3 md:gap-4 w-full max-w-xs relative z-10">
+          <button
+            onClick={onLevelSelect}
+            className="group relative bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold py-4 px-8 rounded-xl text-xl transition-all duration-300 shadow-lg shadow-red-500/40 hover:shadow-red-500/60 hover:scale-105 active:scale-95 overflow-hidden"
+          >
+            <span className="relative z-10">NIVELES</span>
+            <div className="absolute inset-0 animate-shimmer" />
+          </button>
+
+          <button
+            onClick={onStart}
+            className="group bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105 active:scale-95"
+          >
+            MODO INFINITO
+          </button>
+
+          <button
+            onClick={() => setShowMultiplayer(true)}
+            className="group bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+          >
+            <span>👥</span> 2 JUGADORES
+          </button>
+
+          <div className="flex gap-2">
+            <button
+              onClick={onShowInstructions}
+              className="flex-1 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 border border-slate-700 hover:border-slate-600"
+            >
+              Cómo Jugar
+            </button>
+            <button
+              onClick={onSettings}
+              className="bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 border border-slate-700 hover:border-slate-600"
+            >
+              ⚙️
+            </button>
+          </div>
+
+          {/* Sound Mode Toggle */}
+          <button
+            onClick={handleToggleSoundMode}
+            className="flex items-center justify-center gap-2 bg-slate-800/60 hover:bg-slate-700/80 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-xl transition-all duration-300 border border-slate-700/50 hover:border-slate-600"
+          >
+            <span className="text-lg">{soundMode === 'arcade' ? '🎮' : '🔫'}</span>
+            <span className="text-sm">
+              Sonido: {soundMode === 'arcade' ? 'Arcade' : 'Realista'}
+            </span>
+          </button>
+        </div>
+      ) : (
+        /* Multiplayer Menu */
+        <div className="flex flex-col gap-3 md:gap-4 w-full max-w-xs relative z-10">
+          <button
+            onClick={onCoop}
+            className="group bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-bold py-4 px-8 rounded-xl text-lg transition-all duration-300 shadow-lg shadow-green-500/40 hover:shadow-green-500/60 hover:scale-105 active:scale-95"
+          >
+            <div className="flex items-center justify-center gap-2">
+              <span>🤝</span> COOPERATIVO
+            </div>
+            <p className="text-xs font-normal opacity-80 mt-1">Jueguen juntos contra los enemigos</p>
+          </button>
+
+          <button
+            onClick={onVersus}
+            className="group bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-bold py-4 px-8 rounded-xl text-lg transition-all duration-300 shadow-lg shadow-orange-500/40 hover:shadow-orange-500/60 hover:scale-105 active:scale-95"
+          >
+            <div className="flex items-center justify-center gap-2">
+              <span>⚔️</span> VERSUS
+            </div>
+            <p className="text-xs font-normal opacity-80 mt-1">Compitan por la puntuación más alta</p>
+          </button>
+
+          <button
+            onClick={() => setShowMultiplayer(false)}
+            className="bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 border border-slate-700 hover:border-slate-600"
+          >
+            ← Volver
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       {(highScore > 0 || totalStars > 0) && (
-        <div className="mt-8 flex gap-6 md:gap-10 text-center relative z-10">
+        <div className="mt-6 flex gap-6 md:gap-10 text-center relative z-10">
           {highScore > 0 && (
             <div className="bg-slate-800/50 rounded-xl px-5 py-3 border border-slate-700/50">
               <p className="text-slate-500 text-xs uppercase tracking-wider mb-1">Récord</p>

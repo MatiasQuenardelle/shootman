@@ -17,8 +17,44 @@ export interface AimPosition {
 export interface GestureState {
   isGunShape: boolean;
   isShooting: boolean;
+  isReloading: boolean;
+  isFist: boolean;
   aimPosition: AimPosition | null;
   confidence: number;
+}
+
+// Player types for multiplayer
+export interface Player {
+  id: 1 | 2;
+  score: number;
+  lives: number;
+  combo: number;
+  ammo: number;
+  maxAmmo: number;
+  isReloading: boolean;
+  reloadProgress: number;
+  gestureState: GestureState;
+  color: string;
+  activePowerUps: ActivePowerUp[];
+}
+
+// Power-up types
+export type PowerUpType = 'slowmo' | 'rapidfire' | 'spreadshot' | 'magnet' | 'shield' | 'doublepoints';
+
+export interface PowerUp {
+  id: string;
+  type: PowerUpType;
+  x: number;
+  y: number;
+  size: number;
+  spawnTime: number;
+  duration: number; // how long it lasts when collected
+}
+
+export interface ActivePowerUp {
+  type: PowerUpType;
+  endTime: number;
+  playerId?: 1 | 2;
 }
 
 // Game types
@@ -31,16 +67,41 @@ export interface Target {
   direction: { x: number; y: number };
   type: TargetType;
   health: number;
+  maxHealth: number;
   points: number;
   movementPattern: MovementPattern;
   phase: number;
-  spawnTime: number; // for shrinking/fading effects
-  baseSize: number; // original size before shrinking
+  spawnTime: number;
+  baseSize: number;
+  shieldActive?: boolean;
+  isDecoy?: boolean;
+  splitOnDestroy?: boolean;
+  explosionRadius?: number;
+  freezeOnHit?: boolean;
+  isBoss?: boolean;
+  bossPhase?: number;
 }
 
-export type TargetType = 'normal' | 'fast' | 'small' | 'bonus' | 'ufo' | 'alien' | 'meteor' | 'planet';
+export type TargetType =
+  | 'normal' | 'fast' | 'small' | 'bonus'
+  | 'ufo' | 'alien' | 'meteor' | 'planet'
+  | 'explosive' | 'split' | 'shield' | 'decoy' | 'timefreeze'
+  | 'boss';
 
-export type MovementPattern = 'linear' | 'sine' | 'random' | 'static';
+export type MovementPattern = 'linear' | 'sine' | 'random' | 'static' | 'orbit' | 'zigzag';
+
+// Obstacle types
+export interface Obstacle {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: 'barrier' | 'moving' | 'rotating';
+  angle?: number;
+  speed?: number;
+  direction?: { x: number; y: number };
+}
 
 export interface GameState {
   status: GameStatus;
@@ -53,7 +114,20 @@ export interface GameState {
   targetsDestroyed: number;
   shotsFired: number;
   currentLevel: number;
-  timeRemaining: number; // seconds
+  timeRemaining: number;
+  // New properties
+  powerUps: PowerUp[];
+  activePowerUps: ActivePowerUp[];
+  obstacles: Obstacle[];
+  globalTimeScale: number; // for slow-mo
+  ammo: number;
+  maxAmmo: number;
+  isReloading: boolean;
+  reloadProgress: number;
+  screenShake: number;
+  // Two player mode
+  gameMode: 'single' | 'coop' | 'versus';
+  players?: Player[];
 }
 
 export type GameStatus = 'idle' | 'playing' | 'paused' | 'gameOver' | 'levelComplete' | 'levelFailed';
@@ -63,12 +137,12 @@ export interface LevelConfig {
   id: number;
   name: string;
   description: string;
-  duration: number; // seconds
+  duration: number;
   passScore: number;
   threeStarScore: number;
   difficulty: number;
   maxTargets: number;
-  spawnInterval: number; // ms
+  spawnInterval: number;
   targetWeights: {
     normal: number;
     fast: number;
@@ -78,6 +152,11 @@ export interface LevelConfig {
     alien: number;
     meteor: number;
     planet: number;
+    explosive?: number;
+    split?: number;
+    shield?: number;
+    decoy?: number;
+    timefreeze?: number;
   };
   movementWeights: {
     linear: number;
@@ -86,11 +165,14 @@ export interface LevelConfig {
     static: number;
   };
   specialRules?: {
-    noLivesLoss?: boolean; // targets don't take lives when escaping
-    bonusTimePerHit?: number; // seconds added per hit
-    shrinkingTargets?: boolean; // targets shrink over time
-    speedRamp?: boolean; // targets speed up as time passes
-    invisibleTargets?: boolean; // targets fade in/out
+    noLivesLoss?: boolean;
+    bonusTimePerHit?: number;
+    shrinkingTargets?: boolean;
+    speedRamp?: boolean;
+    invisibleTargets?: boolean;
+    hasBoss?: boolean;
+    hasObstacles?: boolean;
+    powerUpFrequency?: number;
   };
 }
 
@@ -98,7 +180,7 @@ export interface LevelResult {
   levelId: number;
   score: number;
   passed: boolean;
-  stars: number; // 0-3
+  stars: number;
   targetsHit: number;
   accuracy: number;
 }
@@ -114,6 +196,8 @@ export interface HitEffect {
   x: number;
   y: number;
   timestamp: number;
+  type?: 'normal' | 'explosive' | 'critical' | 'split';
+  color?: string;
 }
 
 export interface MuzzleFlash {
@@ -121,4 +205,54 @@ export interface MuzzleFlash {
   x: number;
   y: number;
   timestamp: number;
+  playerId?: 1 | 2;
+}
+
+// Weapon skins
+export type WeaponSkin = 'default' | 'laser' | 'plasma' | 'neon' | 'retro' | 'golden';
+export type CrosshairStyle = 'default' | 'dot' | 'circle' | 'triangle' | 'diamond';
+
+// Settings types
+export interface GameSettings {
+  // Audio
+  soundMode: 'arcade' | 'realistic';
+  musicEnabled: boolean;
+  sfxVolume: number;
+  musicVolume: number;
+  // Controls
+  sensitivity: number;
+  leftHandMode: boolean;
+  // Accessibility
+  colorBlindMode: 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia';
+  highContrast: boolean;
+  // Customization
+  weaponSkin: WeaponSkin;
+  crosshairStyle: CrosshairStyle;
+  crosshairColor: string;
+}
+
+// Achievement types
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  requirement: number;
+  type: 'kills' | 'combo' | 'score' | 'accuracy' | 'level' | 'powerup' | 'special';
+  unlocked: boolean;
+  progress: number;
+  unlockedAt?: number;
+}
+
+// Daily challenge types
+export interface DailyChallenge {
+  id: string;
+  date: string; // YYYY-MM-DD
+  name: string;
+  description: string;
+  type: 'score' | 'kills' | 'combo' | 'accuracy' | 'time' | 'special';
+  target: number;
+  reward: number; // bonus score
+  completed: boolean;
+  progress: number;
 }

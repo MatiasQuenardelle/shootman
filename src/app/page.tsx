@@ -9,9 +9,12 @@ import { Instructions } from '@/components/UI/Instructions';
 import { LevelSelect } from '@/components/UI/LevelSelect';
 import { LevelComplete } from '@/components/UI/LevelComplete';
 import { LevelFailed } from '@/components/UI/LevelFailed';
-import { GameState, LevelConfig } from '@/types';
+import { Settings } from '@/components/UI/Settings';
+import { GameState, LevelConfig, PowerUp, ActivePowerUp, Obstacle } from '@/types';
 import { GAME_CONFIG, LEVELS } from '@/constants/game';
 import { audioManager, setupAudioUnlock } from '@/lib/audio';
+import { musicManager } from '@/lib/musicManager';
+import { achievementsManager } from '@/lib/achievementsManager';
 
 const INITIAL_GAME_STATE: GameState = {
   status: 'idle',
@@ -25,12 +28,24 @@ const INITIAL_GAME_STATE: GameState = {
   shotsFired: 0,
   currentLevel: 0,
   timeRemaining: 60,
+  powerUps: [],
+  activePowerUps: [],
+  obstacles: [],
+  globalTimeScale: 1,
+  ammo: GAME_CONFIG.MAX_AMMO,
+  maxAmmo: GAME_CONFIG.MAX_AMMO,
+  isReloading: false,
+  reloadProgress: 0,
+  screenShake: 0,
+  gameMode: 'single',
+  players: undefined,
 };
 
 export default function Home() {
   const [gameState, setGameState] = useState<GameState>(INITIAL_GAME_STATE);
   const [showInstructions, setShowInstructions] = useState(false);
   const [showLevelSelect, setShowLevelSelect] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [highScore, setHighScore] = useState(0);
   const [isNewHighScore, setIsNewHighScore] = useState(false);
 
@@ -41,7 +56,7 @@ export default function Home() {
   const [levelScores, setLevelScores] = useState<Record<number, number>>({});
   const [failReason, setFailReason] = useState<'time' | 'lives'>('time');
 
-  // Set up audio unlock for iOS Safari (must happen on user interaction)
+  // Set up audio unlock for iOS Safari
   useEffect(() => {
     const cleanup = setupAudioUnlock();
     return cleanup;
@@ -90,17 +105,102 @@ export default function Home() {
   // Start endless mode
   const startEndlessMode = useCallback(() => {
     audioManager.initialize();
+    musicManager.initialize().then(() => musicManager.start());
     setIsNewHighScore(false);
     setCurrentLevelConfig(null);
     setGameState({
       ...INITIAL_GAME_STATE,
       status: 'playing',
+      gameMode: 'single',
+    });
+  }, []);
+
+  // Start co-op mode (two players)
+  const startCoopMode = useCallback(() => {
+    audioManager.initialize();
+    musicManager.initialize().then(() => musicManager.start());
+    setIsNewHighScore(false);
+    setCurrentLevelConfig(null);
+    setGameState({
+      ...INITIAL_GAME_STATE,
+      status: 'playing',
+      gameMode: 'coop',
+      players: [
+        {
+          id: 1,
+          score: 0,
+          lives: GAME_CONFIG.STARTING_LIVES,
+          combo: 0,
+          ammo: GAME_CONFIG.MAX_AMMO,
+          maxAmmo: GAME_CONFIG.MAX_AMMO,
+          isReloading: false,
+          reloadProgress: 0,
+          gestureState: { isGunShape: false, isShooting: false, isReloading: false, isFist: false, aimPosition: null, confidence: 0 },
+          color: GAME_CONFIG.PLAYER_COLORS[1],
+          activePowerUps: [],
+        },
+        {
+          id: 2,
+          score: 0,
+          lives: GAME_CONFIG.STARTING_LIVES,
+          combo: 0,
+          ammo: GAME_CONFIG.MAX_AMMO,
+          maxAmmo: GAME_CONFIG.MAX_AMMO,
+          isReloading: false,
+          reloadProgress: 0,
+          gestureState: { isGunShape: false, isShooting: false, isReloading: false, isFist: false, aimPosition: null, confidence: 0 },
+          color: GAME_CONFIG.PLAYER_COLORS[2],
+          activePowerUps: [],
+        },
+      ],
+    });
+  }, []);
+
+  // Start versus mode (two players competitive)
+  const startVersusMode = useCallback(() => {
+    audioManager.initialize();
+    musicManager.initialize().then(() => musicManager.start());
+    setIsNewHighScore(false);
+    setCurrentLevelConfig(null);
+    setGameState({
+      ...INITIAL_GAME_STATE,
+      status: 'playing',
+      gameMode: 'versus',
+      players: [
+        {
+          id: 1,
+          score: 0,
+          lives: GAME_CONFIG.STARTING_LIVES,
+          combo: 0,
+          ammo: GAME_CONFIG.MAX_AMMO,
+          maxAmmo: GAME_CONFIG.MAX_AMMO,
+          isReloading: false,
+          reloadProgress: 0,
+          gestureState: { isGunShape: false, isShooting: false, isReloading: false, isFist: false, aimPosition: null, confidence: 0 },
+          color: GAME_CONFIG.PLAYER_COLORS[1],
+          activePowerUps: [],
+        },
+        {
+          id: 2,
+          score: 0,
+          lives: GAME_CONFIG.STARTING_LIVES,
+          combo: 0,
+          ammo: GAME_CONFIG.MAX_AMMO,
+          maxAmmo: GAME_CONFIG.MAX_AMMO,
+          isReloading: false,
+          reloadProgress: 0,
+          gestureState: { isGunShape: false, isShooting: false, isReloading: false, isFist: false, aimPosition: null, confidence: 0 },
+          color: GAME_CONFIG.PLAYER_COLORS[2],
+          activePowerUps: [],
+        },
+      ],
     });
   }, []);
 
   // Start a specific level
   const startLevel = useCallback((level: LevelConfig) => {
     audioManager.initialize();
+    musicManager.initialize().then(() => musicManager.start());
     setCurrentLevelConfig(level);
     setShowLevelSelect(false);
     setGameState({
@@ -108,6 +208,7 @@ export default function Home() {
       status: 'playing',
       currentLevel: level.id,
       timeRemaining: level.duration,
+      gameMode: 'single',
     });
   }, []);
 
@@ -116,11 +217,12 @@ export default function Home() {
     if (!currentLevelConfig) return;
 
     audioManager.play('levelUp');
+    musicManager.stop();
+    achievementsManager.recordLevelComplete();
 
     const stars = calculateStars(gameState.score, currentLevelConfig);
     const levelId = currentLevelConfig.id;
 
-    // Update stars if better
     setLevelStars((prev) => {
       const newStars = { ...prev };
       if (!newStars[levelId] || stars > newStars[levelId]) {
@@ -130,7 +232,6 @@ export default function Home() {
       return newStars;
     });
 
-    // Update level score if better
     setLevelScores((prev) => {
       const newScores = { ...prev };
       if (!newScores[levelId] || gameState.score > newScores[levelId]) {
@@ -140,7 +241,6 @@ export default function Home() {
       return newScores;
     });
 
-    // Unlock next level
     if (levelId >= unlockedLevels && levelId < LEVELS.length) {
       setUnlockedLevels(levelId + 1);
       localStorage.setItem('shootman-unlocked', (levelId + 1).toString());
@@ -155,6 +255,7 @@ export default function Home() {
   // Handle level failure
   const handleLevelFailed = useCallback(() => {
     audioManager.play('gameOver');
+    musicManager.stop();
     setFailReason(gameState.lives <= 0 ? 'lives' : 'time');
     setGameState((prev) => ({
       ...prev,
@@ -164,13 +265,21 @@ export default function Home() {
 
   const handleGameOver = useCallback(() => {
     audioManager.play('gameOver');
+    musicManager.stop();
+
+    // Check for co-op win achievement
+    if (gameState.gameMode === 'coop' && gameState.score > 5000) {
+      achievementsManager.recordCoopWin();
+    }
+
     setGameState((prev) => ({
       ...prev,
       status: 'gameOver',
     }));
-  }, []);
+  }, [gameState.gameMode, gameState.score]);
 
   const handleMainMenu = useCallback(() => {
+    musicManager.stop();
     setGameState(INITIAL_GAME_STATE);
     setCurrentLevelConfig(null);
     setShowLevelSelect(false);
@@ -192,6 +301,7 @@ export default function Home() {
 
   const handleScoreChange = useCallback((score: number) => {
     setGameState((prev) => ({ ...prev, score }));
+    achievementsManager.recordScore(score);
   }, []);
 
   const handleLivesChange = useCallback((lives: number) => {
@@ -200,6 +310,8 @@ export default function Home() {
 
   const handleComboChange = useCallback((combo: number) => {
     setGameState((prev) => ({ ...prev, combo }));
+    achievementsManager.recordCombo(combo);
+    musicManager.setIntensity(combo, false);
   }, []);
 
   const handleWaveChange = useCallback((wave: number) => {
@@ -212,10 +324,31 @@ export default function Home() {
 
   const handleTargetsChange = useCallback((count: number) => {
     setGameState((prev) => ({ ...prev, targetsDestroyed: count }));
+    achievementsManager.recordKill();
   }, []);
 
   const handleTimeChange = useCallback((time: number) => {
     setGameState((prev) => ({ ...prev, timeRemaining: time }));
+  }, []);
+
+  const handlePowerUpsChange = useCallback((powerUps: PowerUp[]) => {
+    setGameState((prev) => ({ ...prev, powerUps }));
+  }, []);
+
+  const handleActivePowerUpsChange = useCallback((activePowerUps: ActivePowerUp[]) => {
+    setGameState((prev) => ({ ...prev, activePowerUps }));
+  }, []);
+
+  const handleAmmoChange = useCallback((ammo: number) => {
+    setGameState((prev) => ({ ...prev, ammo }));
+  }, []);
+
+  const handleReloadChange = useCallback((isReloading: boolean, progress: number) => {
+    setGameState((prev) => ({ ...prev, isReloading, reloadProgress: progress }));
+  }, []);
+
+  const handleScreenShakeChange = useCallback((shake: number) => {
+    setGameState((prev) => ({ ...prev, screenShake: shake }));
   }, []);
 
   // Calculate total stars
@@ -239,6 +372,9 @@ export default function Home() {
           onStart={startEndlessMode}
           onLevelSelect={() => setShowLevelSelect(true)}
           onShowInstructions={() => setShowInstructions(true)}
+          onSettings={() => setShowSettings(true)}
+          onCoop={startCoopMode}
+          onVersus={startVersusMode}
           highScore={highScore}
           totalStars={totalStars}
         />
@@ -271,6 +407,11 @@ export default function Home() {
           onTimeChange={handleTimeChange}
           onLevelComplete={handleLevelComplete}
           onLevelFailed={handleLevelFailed}
+          onPowerUpsChange={handlePowerUpsChange}
+          onActivePowerUpsChange={handleActivePowerUpsChange}
+          onAmmoChange={handleAmmoChange}
+          onReloadChange={handleReloadChange}
+          onScreenShakeChange={handleScreenShakeChange}
         />
       )}
 
@@ -286,7 +427,9 @@ export default function Home() {
           wave={gameState.wave}
           highScore={highScore}
           isNewHighScore={isNewHighScore}
-          onRestart={startEndlessMode}
+          gameMode={gameState.gameMode}
+          players={gameState.players}
+          onRestart={gameState.gameMode === 'coop' ? startCoopMode : gameState.gameMode === 'versus' ? startVersusMode : startEndlessMode}
           onMainMenu={handleMainMenu}
         />
       )}
@@ -325,6 +468,11 @@ export default function Home() {
       {/* Instructions Modal */}
       {showInstructions && (
         <Instructions onClose={() => setShowInstructions(false)} />
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <Settings onClose={() => setShowSettings(false)} />
       )}
     </main>
   );

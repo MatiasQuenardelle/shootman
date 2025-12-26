@@ -1,3 +1,5 @@
+import { Achievement, DailyChallenge, GameSettings } from '@/types';
+
 export const GAME_CONFIG = {
   // Targets
   TARGET_MIN_SIZE: 40,
@@ -17,27 +19,49 @@ export const GAME_CONFIG = {
   MAX_DIFFICULTY: 5,
 
   // Hand tracking
-  HAND_DETECTION_CONFIDENCE: 0.2, // lower = more detections but more noise (lowered for low-light)
-  SHOOT_THRESHOLD: 0.018, // thumb movement threshold (lowered for better low-light sensitivity)
-  SHOOT_COOLDOWN: 300, // ms between shots (prevents accidental double-shots)
-  SHOOT_THRESHOLD_ABSOLUTE: 0.06, // absolute thumb-to-index distance threshold for shooting
-  AIM_SMOOTHING: 0.25, // lower = smoother/less jittery, higher = more responsive
-  AIM_SENSITIVITY: 1.1, // multiplier for aim movement (higher = faster cursor)
-  AIM_FREEZE_THRESHOLD: 0.015, // thumb movement that triggers aim freeze (prevents aim drift while shooting)
-  AIM_FREEZE_DURATION: 200, // ms to keep aim frozen after shoot (prevents post-shoot drift)
+  HAND_DETECTION_CONFIDENCE: 0.2,
+  SHOOT_THRESHOLD: 0.018,
+  SHOOT_COOLDOWN: 300,
+  SHOOT_THRESHOLD_ABSOLUTE: 0.06,
+  AIM_SMOOTHING: 0.25,
+  AIM_SENSITIVITY: 1.1,
+  AIM_FREEZE_THRESHOLD: 0.015,
+  AIM_FREEZE_DURATION: 200,
 
   // Game
   STARTING_LIVES: 3,
-  MISSED_TARGET_PENALTY: 1, // life lost when target escapes
+  MISSED_TARGET_PENALTY: 1,
+
+  // Ammo & Reload
+  MAX_AMMO: 12,
+  RELOAD_TIME: 1500, // ms
+  RAPID_FIRE_COOLDOWN: 100, // ms when rapid fire active
 
   // Visual
   CROSSHAIR_SIZE: 60,
-  HIT_EFFECT_DURATION: 500, // ms
-  MUZZLE_FLASH_DURATION: 100, // ms
+  HIT_EFFECT_DURATION: 500,
+  MUZZLE_FLASH_DURATION: 100,
+  SCREEN_SHAKE_DECAY: 0.9,
+  SCREEN_SHAKE_MAX: 20,
 
   // Camera
   CAMERA_WIDTH: 640,
   CAMERA_HEIGHT: 480,
+
+  // Power-ups
+  POWERUP_SPAWN_INTERVAL: 15000, // ms
+  POWERUP_SIZE: 50,
+  POWERUP_DURATION: {
+    slowmo: 5000,
+    rapidfire: 8000,
+    spreadshot: 10000,
+    magnet: 8000,
+    shield: 10000,
+    doublepoints: 12000,
+  },
+  SLOWMO_SCALE: 0.3, // time scale during slow-mo
+  MAGNET_RANGE: 200, // pixels
+  SPREAD_SHOT_ANGLES: [-15, 0, 15], // degrees
 
   // Target types configuration
   TARGET_TYPES: {
@@ -97,6 +121,52 @@ export const GAME_CONFIG = {
       health: 1,
       spawnWeight: 5,
     },
+    // New target types
+    explosive: {
+      sizeMultiplier: 1.0,
+      speedMultiplier: 1.0,
+      points: 200,
+      health: 1,
+      spawnWeight: 8,
+      explosionRadius: 100,
+    },
+    split: {
+      sizeMultiplier: 1.2,
+      speedMultiplier: 0.8,
+      points: 150,
+      health: 1,
+      spawnWeight: 8,
+      splitCount: 3,
+    },
+    shield: {
+      sizeMultiplier: 1.1,
+      speedMultiplier: 0.9,
+      points: 300,
+      health: 3,
+      spawnWeight: 6,
+    },
+    decoy: {
+      sizeMultiplier: 1.0,
+      speedMultiplier: 1.2,
+      points: -100, // penalty for shooting
+      health: 1,
+      spawnWeight: 5,
+    },
+    timefreeze: {
+      sizeMultiplier: 0.9,
+      speedMultiplier: 1.5,
+      points: 250,
+      health: 1,
+      spawnWeight: 4,
+      freezeDuration: 3000,
+    },
+    boss: {
+      sizeMultiplier: 3.0,
+      speedMultiplier: 0.5,
+      points: 2000,
+      health: 20,
+      spawnWeight: 0, // spawned specially
+    },
   },
 
   // Movement patterns weights
@@ -106,7 +176,144 @@ export const GAME_CONFIG = {
     random: 20,
     static: 10,
   },
+
+  // Boss configurations
+  BOSS_CONFIG: {
+    phases: 3,
+    healthPerPhase: 7,
+    attackInterval: 2000,
+    moveSpeed: 1.5,
+  },
+
+  // Two-player mode
+  PLAYER_COLORS: {
+    1: '#ef4444', // red
+    2: '#3b82f6', // blue
+  },
 } as const;
+
+// Power-up configurations
+export const POWERUP_CONFIG = {
+  slowmo: {
+    name: 'Slow Motion',
+    icon: '🕐',
+    color: '#8b5cf6',
+    description: 'Slows down time',
+  },
+  rapidfire: {
+    name: 'Rapid Fire',
+    icon: '🔥',
+    color: '#ef4444',
+    description: 'Faster shooting',
+  },
+  spreadshot: {
+    name: 'Spread Shot',
+    icon: '💥',
+    color: '#f97316',
+    description: 'Shoots 3 bullets',
+  },
+  magnet: {
+    name: 'Magnet',
+    icon: '🧲',
+    color: '#06b6d4',
+    description: 'Pulls targets closer',
+  },
+  shield: {
+    name: 'Shield',
+    icon: '🛡️',
+    color: '#22c55e',
+    description: 'Protects from one miss',
+  },
+  doublepoints: {
+    name: 'Double Points',
+    icon: '2️⃣',
+    color: '#eab308',
+    description: 'Double score',
+  },
+} as const;
+
+// Weapon skins
+export const WEAPON_SKINS = {
+  default: {
+    name: 'Default',
+    crosshairColor: '#ef4444',
+    muzzleFlashColor: '#fbbf24',
+    trailColor: null,
+  },
+  laser: {
+    name: 'Laser',
+    crosshairColor: '#22c55e',
+    muzzleFlashColor: '#4ade80',
+    trailColor: '#22c55e',
+  },
+  plasma: {
+    name: 'Plasma',
+    crosshairColor: '#8b5cf6',
+    muzzleFlashColor: '#a78bfa',
+    trailColor: '#8b5cf6',
+  },
+  neon: {
+    name: 'Neon',
+    crosshairColor: '#f0abfc',
+    muzzleFlashColor: '#f0abfc',
+    trailColor: '#f0abfc',
+  },
+  retro: {
+    name: 'Retro',
+    crosshairColor: '#fbbf24',
+    muzzleFlashColor: '#fb923c',
+    trailColor: null,
+  },
+  golden: {
+    name: 'Golden',
+    crosshairColor: '#fcd34d',
+    muzzleFlashColor: '#fcd34d',
+    trailColor: '#fcd34d',
+  },
+} as const;
+
+// Color blind palettes
+export const COLOR_BLIND_PALETTES = {
+  none: {
+    hit: '#22c55e',
+    miss: '#ef4444',
+    bonus: '#eab308',
+    danger: '#ef4444',
+  },
+  protanopia: {
+    hit: '#0ea5e9',
+    miss: '#eab308',
+    bonus: '#8b5cf6',
+    danger: '#eab308',
+  },
+  deuteranopia: {
+    hit: '#0ea5e9',
+    miss: '#f97316',
+    bonus: '#8b5cf6',
+    danger: '#f97316',
+  },
+  tritanopia: {
+    hit: '#22c55e',
+    miss: '#f43f5e',
+    bonus: '#06b6d4',
+    danger: '#f43f5e',
+  },
+} as const;
+
+// Default settings
+export const DEFAULT_SETTINGS: GameSettings = {
+  soundMode: 'arcade',
+  musicEnabled: true,
+  sfxVolume: 0.7,
+  musicVolume: 0.5,
+  sensitivity: 1.0,
+  leftHandMode: false,
+  colorBlindMode: 'none',
+  highContrast: false,
+  weaponSkin: 'default',
+  crosshairStyle: 'default',
+  crosshairColor: '#ef4444',
+};
 
 // Level configurations with creative variations
 export const LEVELS = [
@@ -244,8 +451,36 @@ export const LEVELS = [
     spawnInterval: 800,
     targetWeights: { normal: 15, fast: 15, small: 15, bonus: 20, ufo: 12, alien: 12, meteor: 8, planet: 3 },
     movementWeights: { linear: 20, sine: 30, random: 40, static: 10 },
-    specialRules: { speedRamp: true, shrinkingTargets: true },
+    specialRules: { speedRamp: true, shrinkingTargets: true, hasBoss: true },
   },
+] as const;
+
+// Achievements
+export const ACHIEVEMENTS: Achievement[] = [
+  { id: 'first_blood', name: 'First Blood', description: 'Destroy your first target', icon: '🎯', requirement: 1, type: 'kills', unlocked: false, progress: 0 },
+  { id: 'sharpshooter', name: 'Sharpshooter', description: 'Destroy 100 targets', icon: '🔫', requirement: 100, type: 'kills', unlocked: false, progress: 0 },
+  { id: 'terminator', name: 'Terminator', description: 'Destroy 1000 targets', icon: '🤖', requirement: 1000, type: 'kills', unlocked: false, progress: 0 },
+  { id: 'combo_starter', name: 'Combo Starter', description: 'Get a 5x combo', icon: '⚡', requirement: 5, type: 'combo', unlocked: false, progress: 0 },
+  { id: 'combo_master', name: 'Combo Master', description: 'Get a 15x combo', icon: '💥', requirement: 15, type: 'combo', unlocked: false, progress: 0 },
+  { id: 'combo_legend', name: 'Combo Legend', description: 'Get a 30x combo', icon: '🌟', requirement: 30, type: 'combo', unlocked: false, progress: 0 },
+  { id: 'high_scorer', name: 'High Scorer', description: 'Score 10,000 points', icon: '📊', requirement: 10000, type: 'score', unlocked: false, progress: 0 },
+  { id: 'score_champion', name: 'Score Champion', description: 'Score 50,000 points', icon: '🏆', requirement: 50000, type: 'score', unlocked: false, progress: 0 },
+  { id: 'perfectionist', name: 'Perfectionist', description: 'Complete a level with 100% accuracy', icon: '💎', requirement: 100, type: 'accuracy', unlocked: false, progress: 0 },
+  { id: 'level_master', name: 'Level Master', description: 'Complete all 10 levels', icon: '🎓', requirement: 10, type: 'level', unlocked: false, progress: 0 },
+  { id: 'power_collector', name: 'Power Collector', description: 'Collect 50 power-ups', icon: '🔋', requirement: 50, type: 'powerup', unlocked: false, progress: 0 },
+  { id: 'speed_demon', name: 'Speed Demon', description: 'Destroy 10 targets in 5 seconds', icon: '⏱️', requirement: 10, type: 'special', unlocked: false, progress: 0 },
+  { id: 'boss_slayer', name: 'Boss Slayer', description: 'Defeat a boss', icon: '👹', requirement: 1, type: 'special', unlocked: false, progress: 0 },
+  { id: 'duo_champions', name: 'Duo Champions', description: 'Win a co-op game', icon: '👥', requirement: 1, type: 'special', unlocked: false, progress: 0 },
+];
+
+// Daily challenge templates
+export const DAILY_CHALLENGE_TEMPLATES = [
+  { type: 'score', name: 'Score Hunter', description: 'Score {target} points in a single game', baseTarget: 5000 },
+  { type: 'kills', name: 'Target Practice', description: 'Destroy {target} targets', baseTarget: 50 },
+  { type: 'combo', name: 'Combo Chain', description: 'Reach a {target}x combo', baseTarget: 10 },
+  { type: 'accuracy', name: 'Precision', description: 'Achieve {target}% accuracy in a level', baseTarget: 80 },
+  { type: 'time', name: 'Speed Run', description: 'Complete level 1 with {target} seconds remaining', baseTarget: 30 },
+  { type: 'special', name: 'Power Up', description: 'Collect {target} power-ups', baseTarget: 5 },
 ] as const;
 
 // Hand landmark indices
@@ -275,11 +510,13 @@ export const HAND_LANDMARKS = {
 
 // Colors
 export const COLORS = {
-  primary: '#ef4444', // red-500
-  secondary: '#3b82f6', // blue-500
-  success: '#22c55e', // green-500
-  warning: '#eab308', // yellow-500
-  background: '#0f172a', // slate-900
-  text: '#f8fafc', // slate-50
-  muted: '#64748b', // slate-500
+  primary: '#ef4444',
+  secondary: '#3b82f6',
+  success: '#22c55e',
+  warning: '#eab308',
+  background: '#0f172a',
+  text: '#f8fafc',
+  muted: '#64748b',
+  player1: '#ef4444',
+  player2: '#3b82f6',
 } as const;

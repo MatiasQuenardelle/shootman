@@ -1,4 +1,5 @@
 type SoundEffect = 'shoot' | 'hit' | 'miss' | 'gameOver' | 'levelUp' | 'combo';
+export type SoundMode = 'arcade' | 'realistic';
 
 // Safari/iOS compatibility
 const AudioContextClass = typeof window !== 'undefined'
@@ -8,10 +9,12 @@ const AudioContextClass = typeof window !== 'undefined'
 class AudioManager {
   private audioContext: AudioContext | null = null;
   private sounds: Map<SoundEffect, AudioBuffer> = new Map();
+  private realisticSounds: Map<SoundEffect, AudioBuffer> = new Map();
   private enabled: boolean = true;
   private volume: number = 0.5;
   private initialized: boolean = false;
   private initPromise: Promise<void> | null = null;
+  private soundMode: SoundMode = 'arcade';
 
   async initialize(): Promise<void> {
     // Return existing promise if already initializing
@@ -70,13 +73,22 @@ class AudioManager {
   private async generateSounds(): Promise<void> {
     if (!this.audioContext) return;
 
-    // Generate synthesized sound effects
+    // Generate arcade synthesized sound effects
     this.sounds.set('shoot', await this.createShootSound());
     this.sounds.set('hit', await this.createHitSound());
     this.sounds.set('miss', await this.createMissSound());
     this.sounds.set('gameOver', await this.createGameOverSound());
     this.sounds.set('levelUp', await this.createLevelUpSound());
     this.sounds.set('combo', await this.createComboSound());
+
+    // Generate realistic gun sound effects
+    this.realisticSounds.set('shoot', await this.createRealisticShootSound());
+    // Reuse other sounds for realistic mode
+    this.realisticSounds.set('hit', await this.createHitSound());
+    this.realisticSounds.set('miss', await this.createMissSound());
+    this.realisticSounds.set('gameOver', await this.createGameOverSound());
+    this.realisticSounds.set('levelUp', await this.createLevelUpSound());
+    this.realisticSounds.set('combo', await this.createComboSound());
   }
 
   private async createShootSound(): Promise<AudioBuffer> {
@@ -93,6 +105,42 @@ class AudioManager {
       const noise = Math.random() * 2 - 1;
       const envelope = Math.exp(-t * 30);
       data[i] = noise * envelope * 0.5;
+    }
+
+    return buffer;
+  }
+
+  private async createRealisticShootSound(): Promise<AudioBuffer> {
+    if (!this.audioContext) throw new Error('Audio context not initialized');
+
+    const duration = 0.4;
+    const sampleRate = this.audioContext.sampleRate;
+    const buffer = this.audioContext.createBuffer(2, duration * sampleRate, sampleRate);
+    const leftData = buffer.getChannelData(0);
+    const rightData = buffer.getChannelData(1);
+
+    for (let i = 0; i < buffer.length; i++) {
+      const t = i / sampleRate;
+
+      // Sharp initial crack (high-frequency transient)
+      const crack = (Math.random() * 2 - 1) * Math.exp(-t * 150) * 0.8;
+
+      // Low-frequency boom/thump
+      const boomFreq = 60 + Math.exp(-t * 20) * 40;
+      const boom = Math.sin(2 * Math.PI * boomFreq * t) * Math.exp(-t * 15) * 0.6;
+
+      // Mid-frequency body
+      const body = Math.sin(2 * Math.PI * 150 * t) * Math.exp(-t * 25) * 0.3;
+
+      // Tail noise (echo/reverb simulation)
+      const tailNoise = (Math.random() * 2 - 1) * Math.exp(-t * 8) * 0.15;
+
+      // Combine all components
+      const sample = crack + boom + body + tailNoise;
+
+      // Slight stereo variation for depth
+      leftData[i] = sample * (1 + Math.random() * 0.05);
+      rightData[i] = sample * (1 + Math.random() * 0.05);
     }
 
     return buffer;
@@ -200,7 +248,8 @@ class AudioManager {
   play(sound: SoundEffect): void {
     if (!this.enabled || !this.audioContext) return;
 
-    const buffer = this.sounds.get(sound);
+    const soundMap = this.soundMode === 'realistic' ? this.realisticSounds : this.sounds;
+    const buffer = soundMap.get(sound);
     if (!buffer) return;
 
     // Resume audio context if suspended (required for autoplay policy on iOS Safari)
@@ -243,6 +292,33 @@ class AudioManager {
 
   getVolume(): number {
     return this.volume;
+  }
+
+  setSoundMode(mode: SoundMode): void {
+    this.soundMode = mode;
+    // Persist preference
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('shootman-sound-mode', mode);
+    }
+  }
+
+  getSoundMode(): SoundMode {
+    return this.soundMode;
+  }
+
+  toggleSoundMode(): SoundMode {
+    const newMode = this.soundMode === 'arcade' ? 'realistic' : 'arcade';
+    this.setSoundMode(newMode);
+    return newMode;
+  }
+
+  loadSoundModePreference(): void {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('shootman-sound-mode') as SoundMode | null;
+      if (saved === 'arcade' || saved === 'realistic') {
+        this.soundMode = saved;
+      }
+    }
   }
 }
 
