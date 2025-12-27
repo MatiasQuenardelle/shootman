@@ -52,12 +52,29 @@ function createDuck(screenWidth: number, screenHeight: number, round: number): D
 
 export function DuckHuntCanvas({ onScoreChange, onGameOver, isPlaying }: DuckHuntCanvasProps) {
   const { videoRef, hasPermission, requestPermission, error: cameraError } = useCamera();
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const { handLandmarks, isInitialized, startTracking, stopTracking, error: trackingError } =
-    useHandTracking(videoRef.current);
+    useHandTracking(videoElement);
 
   const [screenDimensions, setScreenDimensions] = useState({ width: 0, height: 0 });
   const [isPortrait, setIsPortrait] = useState(false);
   const { gestureState } = useGestureDetection(handLandmarks, screenDimensions);
+
+  // Sync video element when ref is ready
+  useEffect(() => {
+    const checkVideoRef = () => {
+      if (videoRef.current && !videoElement) {
+        setVideoElement(videoRef.current);
+      }
+    };
+
+    // Check immediately
+    checkVideoRef();
+
+    // Also check periodically in case ref updates after permission is granted
+    const interval = setInterval(checkVideoRef, 100);
+    return () => clearInterval(interval);
+  }, [videoRef, videoElement, hasPermission]);
 
   const [ducks, setDucks] = useState<Duck[]>([]);
   const [score, setScore] = useState(0);
