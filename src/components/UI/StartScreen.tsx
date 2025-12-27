@@ -10,6 +10,7 @@ interface StartScreenProps {
   onSettings: () => void;
   onCoop: () => void;
   onVersus: () => void;
+  onDuckHunt: () => void;
   highScore: number;
   totalStars: number;
 }
@@ -21,6 +22,7 @@ export function StartScreen({
   onSettings,
   onCoop,
   onVersus,
+  onDuckHunt,
   highScore,
   totalStars,
 }: StartScreenProps) {
@@ -112,6 +114,13 @@ export function StartScreen({
             className="group bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
           >
             <span>👥</span> 2 JUGADORES
+          </button>
+
+          <button
+            onClick={onDuckHunt}
+            className="group bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+          >
+            <span>🦆</span> DUCK HUNT
           </button>
 
           <div className="flex gap-2">

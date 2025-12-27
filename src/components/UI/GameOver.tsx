@@ -7,7 +7,7 @@ interface GameOverProps {
   wave: number;
   highScore: number;
   isNewHighScore: boolean;
-  gameMode?: 'single' | 'coop' | 'versus';
+  gameMode?: 'single' | 'coop' | 'versus' | 'duckhunt';
   players?: Player[];
   onRestart: () => void;
   onMainMenu: () => void;
@@ -96,7 +96,7 @@ export function GameOver({
         {/* Stats */}
         <div className="grid grid-cols-2 gap-4 mb-8">
           <div className="bg-slate-700/50 rounded-lg p-3">
-            <p className="text-slate-400 text-sm">WAVE REACHED</p>
+            <p className="text-slate-400 text-sm">{gameMode === 'duckhunt' ? 'ROUND REACHED' : 'WAVE REACHED'}</p>
             <p className="text-2xl font-bold text-white">{wave}</p>
           </div>
           <div className="bg-slate-700/50 rounded-lg p-3">

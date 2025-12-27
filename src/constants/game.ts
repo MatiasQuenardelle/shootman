@@ -521,3 +521,61 @@ export const COLORS = {
   player1: '#ef4444',
   player2: '#3b82f6',
 } as const;
+
+// Duck Hunt Mode Configuration
+export const DUCK_HUNT_CONFIG = {
+  // Game rules
+  SHOTS_PER_ROUND: 3,
+  DUCKS_PER_ROUND: 10,
+  DUCKS_TO_PASS: 6, // Must hit at least 6 ducks to pass the round
+  FLY_AWAY_TIME: 7000, // Duck flies away after 7 seconds if not hit
+
+  // Duck movement
+  DUCK_BASE_SPEED: 3,
+  DUCK_SPEED_INCREASE_PER_ROUND: 0.3,
+  DUCK_SIZE: 60,
+  DUCK_FALL_SPEED: 8,
+  DUCK_DIRECTION_CHANGE_INTERVAL: 1500, // Change direction every 1.5s
+
+  // Scoring
+  POINTS_STANDARD: 500,
+  POINTS_BONUS: 1000, // Blue duck
+  POINTS_SPECIAL: 1500, // Red duck (rare)
+  PERFECT_ROUND_BONUS: 10000,
+
+  // Animation
+  WING_FLAP_SPEED: 150, // ms per frame
+  HIT_ANIMATION_DURATION: 500,
+  FALL_ANIMATION_DURATION: 1000,
+
+  // Colors (NES palette)
+  SKY_COLOR: '#6CC0F8', // Light blue NES sky
+  GRASS_LIGHT: '#9BD81C', // Yellow-green grass
+  GRASS_DARK: '#416D16', // Darker grass
+  DIRT_COLOR: '#CC7B34', // Brown dirt
+  TREE_TRUNK: '#C04C00', // Red-brown trunk
+  TREE_FOLIAGE: '#CCCC00', // Yellow-green foliage
+
+  // Duck colors (NES style)
+  DUCK_BLACK: {
+    body: '#000000',
+    head: '#00B800',
+    beak: '#FFB897',
+    feet: '#FFB897',
+    wing: '#FFFFFF',
+  },
+  DUCK_BLUE: {
+    body: '#3B82F6',
+    head: '#00B800',
+    beak: '#FFB897',
+    feet: '#FFB897',
+    wing: '#FFFFFF',
+  },
+  DUCK_RED: {
+    body: '#B81818',
+    head: '#00B800',
+    beak: '#FFB897',
+    feet: '#FFB897',
+    wing: '#FFFFFF',
+  },
+} as const;

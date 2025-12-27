@@ -126,8 +126,32 @@ export interface GameState {
   reloadProgress: number;
   screenShake: number;
   // Two player mode
-  gameMode: 'single' | 'coop' | 'versus';
+  gameMode: 'single' | 'coop' | 'versus' | 'duckhunt';
   players?: Player[];
+}
+
+// Duck Hunt specific types
+export interface DuckHuntState {
+  round: number;
+  shotsRemaining: number;
+  ducksHit: number;
+  ducksInRound: number;
+  ducksShotThisRound: boolean[];
+  roundPhase: 'playing' | 'roundComplete' | 'gameOver' | 'perfect';
+  flyAwayTimer: number | null;
+}
+
+export interface Duck {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  state: 'flying' | 'hit' | 'falling' | 'flyingAway';
+  color: 'black' | 'red' | 'blue';
+  animationFrame: number;
+  points: number;
+  spawnTime: number;
 }
 
 export type GameStatus = 'idle' | 'playing' | 'paused' | 'gameOver' | 'levelComplete' | 'levelFailed';

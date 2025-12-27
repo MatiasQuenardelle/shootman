@@ -12,6 +12,7 @@ import { LevelFailed } from '@/components/UI/LevelFailed';
 import { Settings } from '@/components/UI/Settings';
 import { GameState, LevelConfig, PowerUp, ActivePowerUp, Obstacle } from '@/types';
 import { GAME_CONFIG, LEVELS } from '@/constants/game';
+import { DuckHuntCanvas } from '@/components/Game/DuckHunt';
 import { audioManager, setupAudioUnlock } from '@/lib/audio';
 import { musicManager } from '@/lib/musicManager';
 import { achievementsManager } from '@/lib/achievementsManager';
@@ -197,6 +198,17 @@ export default function Home() {
     });
   }, []);
 
+  // Start Duck Hunt mode
+  const startDuckHuntMode = useCallback(() => {
+    setIsNewHighScore(false);
+    setCurrentLevelConfig(null);
+    setGameState({
+      ...INITIAL_GAME_STATE,
+      status: 'playing',
+      gameMode: 'duckhunt',
+    });
+  }, []);
+
   // Start a specific level
   const startLevel = useCallback((level: LevelConfig) => {
     audioManager.initialize();
@@ -375,6 +387,7 @@ export default function Home() {
           onSettings={() => setShowSettings(true)}
           onCoop={startCoopMode}
           onVersus={startVersusMode}
+          onDuckHunt={startDuckHuntMode}
           highScore={highScore}
           totalStars={totalStars}
         />
@@ -390,11 +403,12 @@ export default function Home() {
         />
       )}
 
-      {/* Game Canvas */}
+      {/* Game Canvas (non-Duck Hunt modes) */}
       {(gameState.status === 'playing' ||
         gameState.status === 'gameOver' ||
         gameState.status === 'levelComplete' ||
-        gameState.status === 'levelFailed') && (
+        gameState.status === 'levelFailed') &&
+        gameState.gameMode !== 'duckhunt' && (
         <GameCanvas
           gameState={gameState}
           levelConfig={currentLevelConfig || undefined}
@@ -415,8 +429,19 @@ export default function Home() {
         />
       )}
 
-      {/* Score Board */}
-      {gameState.status === 'playing' && (
+      {/* Duck Hunt Mode */}
+      {gameState.gameMode === 'duckhunt' && gameState.status === 'playing' && (
+        <DuckHuntCanvas
+          isPlaying={gameState.status === 'playing'}
+          onScoreChange={handleScoreChange}
+          onGameOver={(finalScore) => {
+            setGameState((prev) => ({ ...prev, status: 'gameOver', score: finalScore }));
+          }}
+        />
+      )}
+
+      {/* Score Board (not for Duck Hunt - it has its own HUD) */}
+      {gameState.status === 'playing' && gameState.gameMode !== 'duckhunt' && (
         <ScoreBoard gameState={gameState} levelConfig={currentLevelConfig || undefined} />
       )}
 
@@ -429,7 +454,12 @@ export default function Home() {
           isNewHighScore={isNewHighScore}
           gameMode={gameState.gameMode}
           players={gameState.players}
-          onRestart={gameState.gameMode === 'coop' ? startCoopMode : gameState.gameMode === 'versus' ? startVersusMode : startEndlessMode}
+          onRestart={
+            gameState.gameMode === 'coop' ? startCoopMode :
+            gameState.gameMode === 'versus' ? startVersusMode :
+            gameState.gameMode === 'duckhunt' ? startDuckHuntMode :
+            startEndlessMode
+          }
           onMainMenu={handleMainMenu}
         />
       )}
