@@ -229,6 +229,8 @@ export interface GameSettings {
   weaponSkin: WeaponSkin;
   crosshairStyle: CrosshairStyle;
   crosshairColor: string;
+  // Gameplay
+  limitedAmmoEnabled: boolean;
 }
 
 // Achievement types

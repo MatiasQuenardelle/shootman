@@ -220,6 +220,26 @@ export function Settings({ onClose }: SettingsProps) {
           </div>
         </section>
 
+        {/* Gameplay */}
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-3">Gameplay</h3>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-slate-300">Limited Ammo & Reload</span>
+                <p className="text-slate-500 text-sm">Require reloading when ammo runs out</p>
+              </div>
+              <button
+                onClick={() => updateSetting('limitedAmmoEnabled', !settings.limitedAmmoEnabled)}
+                className={`px-3 py-1 rounded ${settings.limitedAmmoEnabled ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-300'}`}
+              >
+                {settings.limitedAmmoEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* Reset */}
         <div className="flex justify-between">
           <button

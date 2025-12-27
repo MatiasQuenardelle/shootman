@@ -15,6 +15,7 @@ import { createPowerUp, isPowerUpExpired, checkPowerUpCollision, activatePowerUp
 import { findClosestHitTarget } from '@/lib/collision';
 import { audioManager } from '@/lib/audio';
 import { achievementsManager } from '@/lib/achievementsManager';
+import { settingsManager } from '@/lib/settingsManager';
 import { GAME_CONFIG, POWERUP_CONFIG } from '@/constants/game';
 
 interface GameCanvasProps {
@@ -114,9 +115,10 @@ export function GameCanvas({
     }
   }, [gameState.status, isInitialized, hasPermission, startTracking, stopTracking]);
 
-  // Handle reload gesture
+  // Handle reload gesture (only when limited ammo is enabled)
   useEffect(() => {
-    if (gestureState.isReloading && !isReloading && ammo < GAME_CONFIG.MAX_AMMO) {
+    const limitedAmmoEnabled = settingsManager.get('limitedAmmoEnabled');
+    if (limitedAmmoEnabled && gestureState.isReloading && !isReloading && ammo < GAME_CONFIG.MAX_AMMO) {
       setIsReloading(true);
       reloadStartTimeRef.current = Date.now();
     }
@@ -147,6 +149,8 @@ export function GameCanvas({
 
   // Handle shooting
   useEffect(() => {
+    const limitedAmmoEnabled = settingsManager.get('limitedAmmoEnabled');
+
     if (
       gameState.status !== 'playing' ||
       !gestureState.isShooting ||
@@ -160,8 +164,8 @@ export function GameCanvas({
       return;
     }
 
-    // Check ammo
-    if (ammo <= 0) {
+    // Check ammo (only when limited ammo is enabled)
+    if (limitedAmmoEnabled && ammo <= 0) {
       audioManager.play('miss');
       lastShotProcessedRef.current = true;
       return;
@@ -170,10 +174,12 @@ export function GameCanvas({
     lastShotProcessedRef.current = true;
     audioManager.play('shoot');
 
-    // Decrease ammo
-    const newAmmo = ammo - 1;
-    setAmmo(newAmmo);
-    onAmmoChange(newAmmo);
+    // Decrease ammo (only when limited ammo is enabled)
+    if (limitedAmmoEnabled) {
+      const newAmmo = ammo - 1;
+      setAmmo(newAmmo);
+      onAmmoChange(newAmmo);
+    }
 
     // Add screen shake
     setScreenShake(GAME_CONFIG.SCREEN_SHAKE_MAX);
@@ -624,10 +630,10 @@ export function GameCanvas({
           position={gestureState.aimPosition}
           isGunShape={gestureState.isGunShape}
           isShooting={gestureState.isShooting}
-          isReloading={isReloading}
-          reloadProgress={reloadProgress}
-          ammo={ammo}
-          maxAmmo={GAME_CONFIG.MAX_AMMO}
+          isReloading={settingsManager.get('limitedAmmoEnabled') ? isReloading : false}
+          reloadProgress={settingsManager.get('limitedAmmoEnabled') ? reloadProgress : 0}
+          ammo={settingsManager.get('limitedAmmoEnabled') ? ammo : undefined}
+          maxAmmo={settingsManager.get('limitedAmmoEnabled') ? GAME_CONFIG.MAX_AMMO : undefined}
         />
       )}
 
@@ -665,8 +671,8 @@ export function GameCanvas({
         </div>
       )}
 
-      {/* Reload hint */}
-      {ammo === 0 && !isReloading && (
+      {/* Reload hint (only when limited ammo is enabled) */}
+      {settingsManager.get('limitedAmmoEnabled') && ammo === 0 && !isReloading && (
         <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-red-500/80 text-white px-4 py-2 rounded-full animate-pulse">
           <p className="text-sm">Cierra el puño para recargar</p>
         </div>

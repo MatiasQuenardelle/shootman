@@ -313,6 +313,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   weaponSkin: 'default',
   crosshairStyle: 'default',
   crosshairColor: '#ef4444',
+  limitedAmmoEnabled: false,
 };
 
 // Level configurations with creative variations
